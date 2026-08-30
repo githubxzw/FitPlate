@@ -1,0 +1,98 @@
+// FitPlate 数据模型
+// 设计说明:
+// - 训练日(PlanDay)与饮食日(MealDay)按「天」存储,内容以结构化 JSON 保存,
+//   便于 AI/规则引擎生成、用户编辑覆盖与版本化重新生成。
+// - 用户档案(Profile)与用户 1:1,保存所有用于计算的输入。
+// - 所有 JSON 字段在写入前都经过 zod 校验(见 src/lib/validation.ts)。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String // scrypt: salt:key
+  name         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  profile      Profile?
+  planDays     PlanDay[]
+  mealDays     MealDay[]
+
+  @@map("users")
+}
+
+model Profile {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sex                 String // male | female
+  age                 Int
+  heightCm            Float
+  weightKg            Float
+  bodyFatPct          Float?
+  goalWeightKg        Float
+  durationDays        Int // 7 | 14 | 30
+  startDate           DateTime  @db.Date // 计划起始日(含)
+  experience          String // beginner | intermediate | advanced
+  trainingDaysPerWeek Int // 1-7
+  place               String // home | gym
+  equipment           String[] // none, mat, dumbbell, band, kettlebell, bench, pullup_bar, barbell, machine, cable, cardio_machine, chair
+  dietPrefs           String[] // 高蛋白 / 素食 / 快手菜 / 低预算 / 爱吃辣 / 低碳水
+  allergies           String[] // 花生 / 坚果 / 牛奶 / 鸡蛋 / 大豆 / 海鲜 / 麸质
+  disliked            String[] // 忌口食材关键词
+  budgetYuan          Float // 每日餐饮预算(元)
+  cookMinutes         Int // 单餐可接受烹饪时长上限(分钟)
+  flags               String[] // pregnancy | chronic | ed_history (仅用于提示咨询专业人士,不做医疗判断)
+  onboardedAt         DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  @@map("profiles")
+}
+
+model PlanDay {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  isTraining  Boolean
+  focus       String // 例:全身力量 / 上肢推 + 有氧 / 恢复日
+  intensity   String    @default("standard") // light | standard | plus
+  blocks      Json // { warmup: BlockItem[], strength: BlockItem[], cardio: BlockItem[], stretch: BlockItem[] }
+  aiTips      Json? // string[] 教练提示(规则引擎或 AI 生成)
+  sources     Json? // {title,url,source,accessedAt}[] 参考来源
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  seed        Int       @default(0) // 生成种子,重新生成时改变
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("plan_days")
+}
+
+model MealDay {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  targetKcal     Int
+  targetProtein  Int
+  targetCarbs    Int
+  targetFat      Int
+  slots          Json // { breakfast: MealSlot, lunch: MealSlot, dinner: MealSlot, snack: MealSlot }
+  completedSlots String[] @default([]) // breakfast/lunch/dinner/snack
+  seed           Int      @default(0)
+  sources        Json?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("meal_days")
+}

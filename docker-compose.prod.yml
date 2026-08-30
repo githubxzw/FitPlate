@@ -1,0 +1,57 @@
+# FitPlate 生产编排:PostgreSQL + 应用(单机自托管)
+# 用法:
+#   cp .env.example .env   # 修改 NEXTAUTH_URL / NEXTAUTH_SECRET / POSTGRES_PASSWORD
+#   docker compose -f docker-compose.prod.yml up -d --build
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    # 国内网络可改用: image: docker.m.daocloud.io/library/postgres:16-alpine
+    container_name: fitplate-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fitplate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fitplate}
+      POSTGRES_DB: fitplate
+    volumes:
+      - fitplate_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitplate"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # 如需宿主机直连数据库再放开端口;生产建议仅内网
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  app:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR:-}
+    container_name: fitplate-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://fitplate:${POSTGRES_PASSWORD:-fitplate}@db:5432/fitplate?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?请在 .env 中设置 NEXTAUTH_URL,例如 https://fit.example.com}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?请在 .env 中设置随机 NEXTAUTH_SECRET}
+      TZ: ${TZ:-Asia/Shanghai}
+      # ---- 可选增强(不配置自动降级) ----
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      # 首次启动写入演示账号(demo@fitplate.app / fitplate123),生产建议保持 0 并自行注册
+      SEED_ON_START: ${SEED_ON_START:-0}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  fitplate_pgdata:
