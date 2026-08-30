@@ -24,7 +24,7 @@ export function placeholderSvg(opts: { seed: string; emoji: string; label: strin
   const [c1, c2] = EMOJI_PALETTE[h1 % EMOJI_PALETTE.length];
   const angle = h1 % 360;
   const label = opts.label.slice(0, 24).replace(/[<>&"']/g, "");
-  const emoji = opts.emoji.slice(0, 4);
+  const emoji = opts.emoji.slice(0, 4).replace(/[<>&"']/g, "");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">
   <defs>
     <linearGradient id="g" gradientTransform="rotate(${angle} .5 .5)">
