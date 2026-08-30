@@ -54,7 +54,8 @@ services:
       REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
       INVITE_CODE: ${INVITE_CODE:-}
     ports:
-      - "127.0.0.1:3000:3000"
+      # IP 直连方案需绑定 0.0.0.0(安全组只放行 3000);若改回 Nginx 反代方案请恢复 "127.0.0.1:3000:3000"
+      - "3000:3000"
 
 volumes:
   fitplate_pgdata:

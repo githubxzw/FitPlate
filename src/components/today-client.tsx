@@ -37,7 +37,7 @@ export interface TodayProps {
 }
 
 async function api(url: string, body: unknown, method = "POST") {
-  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: method === "POST" ? JSON.stringify(body) : undefined });
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error ?? "操作失败");
   return json.data;
