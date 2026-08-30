@@ -14,11 +14,11 @@ export default async function OnboardingPage() {
   const initial: Partial<ProfileFormState> | undefined = profile
     ? {
         sex: profile.sex as ProfileFormState["sex"],
-        age: profile.age,
-        heightCm: profile.heightCm,
-        weightKg: profile.weightKg,
+        age: String(profile.age),
+        heightCm: String(profile.heightCm),
+        weightKg: String(profile.weightKg),
         bodyFatPct: profile.bodyFatPct ? String(profile.bodyFatPct) : "",
-        goalWeightKg: profile.goalWeightKg,
+        goalWeightKg: String(profile.goalWeightKg),
         durationDays: profile.durationDays as 7 | 14 | 30,
         experience: profile.experience as ProfileFormState["experience"],
         trainingDaysPerWeek: profile.trainingDaysPerWeek,

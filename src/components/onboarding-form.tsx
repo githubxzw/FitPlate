@@ -1,6 +1,8 @@
 "use client";
 
 // 用户信息问卷:基本信息 → 目标与训练 → 饮食偏好,最后一步可预览推导结果
+// 数字输入一律以字符串保存原始输入(可清空、可输入小数点),提交时才转数字,
+// 避免「删空后卡住一个 0」的问题;校验失败会在前端给出具体字段提示并跳转对应步骤。
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,11 +13,11 @@ import { cn } from "@/lib/utils";
 
 export interface ProfileFormState {
   sex: "male" | "female";
-  age: number;
-  heightCm: number;
-  weightKg: number;
+  age: string;
+  heightCm: string;
+  weightKg: string;
   bodyFatPct: string;
-  goalWeightKg: number;
+  goalWeightKg: string;
   durationDays: 7 | 14 | 30;
   experience: "beginner" | "intermediate" | "advanced";
   trainingDaysPerWeek: number;
@@ -31,11 +33,11 @@ export interface ProfileFormState {
 
 export const DEFAULT_FORM: ProfileFormState = {
   sex: "male",
-  age: 28,
-  heightCm: 172,
-  weightKg: 70,
+  age: "28",
+  heightCm: "172",
+  weightKg: "70",
   bodyFatPct: "",
-  goalWeightKg: 65,
+  goalWeightKg: "65",
   durationDays: 30,
   experience: "beginner",
   trainingDaysPerWeek: 3,
@@ -51,6 +53,39 @@ export const DEFAULT_FORM: ProfileFormState = {
 
 export function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
+}
+
+/** 数字输入:只允许数字与小数点(integer 时禁点),允许随时清空 */
+function NumInput({
+  id,
+  value,
+  onChange,
+  integer = false,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  integer?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode={integer ? "numeric" : "decimal"}
+      className="input"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => {
+        let v = e.target.value.replace(/[^\d.]/g, "");
+        if (integer) v = v.replace(/\./g, "");
+        const parts = v.split(".");
+        if (parts.length > 2) v = `${parts[0]}.${parts.slice(1).join("")}`;
+        onChange(v);
+      }}
+    />
+  );
 }
 
 function ChipGroup({
@@ -86,6 +121,33 @@ function ChipGroup({
   );
 }
 
+/** 服务端校验字段 → 中文提示与所在步骤(用于自动跳转) */
+const FIELD_HINT: Record<string, string> = {
+  age: "年龄需在 13~90 岁之间",
+  heightCm: "身高需在 120~230 cm 之间",
+  weightKg: "体重需在 30~250 kg 之间",
+  goalWeightKg: "目标体重需在 30~250 kg 之间",
+  bodyFatPct: "体脂率需在 3%~70% 之间",
+  trainingDaysPerWeek: "每周可训练天数需在 1~7",
+  budgetYuan: "每日预算需在 10~500 元",
+  cookMinutes: "单餐烹饪时长需在 10~120 分钟",
+  sex: "请选择性别",
+  durationDays: "请选择计划周期",
+  experience: "请选择运动基础",
+  place: "请选择训练场地",
+  equipment: "可用器械配置异常",
+  dietPrefs: "饮食偏好配置异常",
+  allergies: "过敏原配置异常",
+  disliked: "忌口项过长(每个不超过 12 字)",
+  flags: "特殊情况配置异常",
+};
+
+const FIELD_STEP: Record<string, number> = {
+  sex: 0, age: 0, heightCm: 0, weightKg: 0, bodyFatPct: 0,
+  goalWeightKg: 1, durationDays: 1, experience: 1, trainingDaysPerWeek: 1, place: 1, equipment: 1,
+  dietPrefs: 2, allergies: 2, disliked: 2, budgetYuan: 2, cookMinutes: 2, flags: 2,
+};
+
 export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState> }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -97,13 +159,13 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
   const set = <K extends keyof ProfileFormState>(k: K, v: ProfileFormState[K]) => setF((p) => ({ ...p, [k]: v }));
 
   const preview = useMemo(() => {
-    const bmr = calcBMR({
-      sex: f.sex,
-      age: Number(f.age),
-      heightCm: Number(f.heightCm),
-      weightKg: Number(f.weightKg),
-      bodyFatPct: f.bodyFatPct ? Number(f.bodyFatPct) : null,
-    });
+    const n = (s: string) => (s.trim() === "" ? NaN : Number(s));
+    const age = n(f.age);
+    const h = n(f.heightCm);
+    const w = n(f.weightKg);
+    const bf = f.bodyFatPct.trim() === "" ? null : n(f.bodyFatPct);
+    if (![age, h, w].every(Number.isFinite) || (bf !== null && !Number.isFinite(bf))) return null;
+    const bmr = calcBMR({ sex: f.sex, age, heightCm: h, weightKg: w, bodyFatPct: bf });
     const tdee = bmr * activityFactor(Number(f.trainingDaysPerWeek));
     return { bmr: Math.round(bmr), tdee: Math.round(tdee) };
   }, [f.sex, f.age, f.heightCm, f.weightKg, f.bodyFatPct, f.trainingDaysPerWeek]);
@@ -116,7 +178,35 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
     }));
   }
 
+  /** 提交前的本地校验:空值/范围给出具体中文提示,失败返回所在步骤 */
+  function collectClientError(): { message: string; step: number } | null {
+    const n = (s: string) => (s.trim() === "" ? NaN : Number(s));
+    const checks: [string, string, number, number, number][] = [
+      ["年龄", "年龄需在 13~90 岁之间", n(f.age), 13, 90],
+      ["身高", "身高需在 120~230 cm 之间", n(f.heightCm), 120, 230],
+      ["体重", "体重需在 30~250 kg 之间", n(f.weightKg), 30, 250],
+      ["目标体重", "目标体重需在 30~250 kg 之间", n(f.goalWeightKg), 30, 250],
+    ];
+    for (const [label, hint, v, min, max] of checks) {
+      if (!Number.isFinite(v)) return { message: `请填写${label}`, step: 0 };
+      if (v < min || v > max) return { message: hint, step: 0 };
+    }
+    if (f.bodyFatPct.trim() !== "") {
+      const bf = n(f.bodyFatPct);
+      if (!Number.isFinite(bf) || bf < 3 || bf > 70) {
+        return { message: "体脂率需在 3%~70% 之间(不确定可以留空)", step: 0 };
+      }
+    }
+    return null;
+  }
+
   async function submit() {
+    const local = collectClientError();
+    if (local) {
+      setStep(local.step);
+      setError(local.message);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -133,7 +223,16 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
       };
       const res = await fetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "保存失败");
+      if (!res.ok) {
+        const issues = json.issues as { path: string; message: string }[] | undefined;
+        if (Array.isArray(issues) && issues.length > 0) {
+          const hints = [...new Set(issues.map((i) => FIELD_HINT[i.path] ?? `${i.path} 格式不正确`))];
+          const target = FIELD_STEP[issues[0].path];
+          if (typeof target === "number") setStep(target);
+          throw new Error(`请检查:${hints.join(";")}`);
+        }
+        throw new Error(json.error ?? "保存失败");
+      }
       await fetch("/api/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "all" }) });
       await fetch("/api/meals?scope=all", { method: "POST" });
       router.push("/today");
@@ -187,19 +286,19 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
             </div>
             <div>
               <label className="label" htmlFor="age">年龄</label>
-              <input id="age" type="number" className="input" min={13} max={90} value={f.age} onChange={(e) => set("age", Number(e.target.value))} />
+              <NumInput id="age" integer value={f.age} onChange={(v) => set("age", v)} placeholder="如 28" />
             </div>
             <div>
               <label className="label" htmlFor="height">身高(cm)</label>
-              <input id="height" type="number" className="input" min={120} max={230} value={f.heightCm} onChange={(e) => set("heightCm", Number(e.target.value))} />
+              <NumInput id="height" integer value={f.heightCm} onChange={(v) => set("heightCm", v)} placeholder="如 172" />
             </div>
             <div>
               <label className="label" htmlFor="weight">体重(kg)</label>
-              <input id="weight" type="number" step="0.1" className="input" min={30} max={250} value={f.weightKg} onChange={(e) => set("weightKg", Number(e.target.value))} />
+              <NumInput id="weight" value={f.weightKg} onChange={(v) => set("weightKg", v)} placeholder="如 70.5" />
             </div>
             <div className="col-span-2">
               <label className="label" htmlFor="bodyfat">体脂率(%)- 可选</label>
-              <input id="bodyfat" type="number" step="0.1" className="input" min={3} max={70} placeholder="不知道可以留空" value={f.bodyFatPct} onChange={(e) => set("bodyFatPct", e.target.value)} />
+              <NumInput id="bodyfat" value={f.bodyFatPct} onChange={(v) => set("bodyFatPct", v)} placeholder="不知道可以留空" />
             </div>
           </div>
           <p className="text-xs text-zinc-400">填写体脂率可以用更精确的公式估算代谢,不确定就留空。</p>
@@ -211,7 +310,7 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label" htmlFor="goal">目标体重(kg)</label>
-              <input id="goal" type="number" step="0.1" className="input" min={30} max={250} value={f.goalWeightKg} onChange={(e) => set("goalWeightKg", Number(e.target.value))} />
+              <NumInput id="goal" value={f.goalWeightKg} onChange={(v) => set("goalWeightKg", v)} placeholder="如 65" />
             </div>
             <div>
               <span className="label">计划周期</span>
@@ -310,6 +409,7 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
                 id="dislike"
                 className="input"
                 placeholder="输入后回车,如:香菜、肥肉"
+                maxLength={12}
                 value={dislikeInput}
                 onChange={(e) => setDislikeInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -321,6 +421,7 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
                 }}
               />
             </div>
+            <p className="mt-1 text-xs text-zinc-400">每项不超过 12 个字,回车添加,点标签删除。</p>
             {f.disliked.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {f.disliked.map((d) => (
@@ -357,8 +458,14 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
           </div>
           <div className="rounded-xl bg-zinc-50 p-3 text-sm dark:bg-zinc-800/60">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="sky">预估基础代谢 ≈ {preview.bmr} kcal</Badge>
-              <Badge tone="emerald">预估每日消耗 ≈ {preview.tdee} kcal</Badge>
+              {preview ? (
+                <>
+                  <Badge tone="sky">预估基础代谢 ≈ {preview.bmr} kcal</Badge>
+                  <Badge tone="emerald">预估每日消耗 ≈ {preview.tdee} kcal</Badge>
+                </>
+              ) : (
+                <span className="text-xs text-zinc-400">回第 1 步填写完整的身高体重后,这里会实时显示代谢预估。</span>
+              )}
             </div>
             <p className="mt-2 text-xs text-zinc-400">保存后系统会按缺口给出每日热量与蛋白质目标;所有数值仅供参考。</p>
           </div>
@@ -372,7 +479,7 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
           上一步
         </button>
         {step < 2 ? (
-          <button type="button" className="btn-primary" onClick={() => setStep((s) => s + 1)}>
+          <button type="button" className="btn-primary" onClick={() => { setError(null); setStep((s) => s + 1); }}>
             下一步
           </button>
         ) : (
