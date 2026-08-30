@@ -102,11 +102,25 @@ Strict-Transport-Security(建议在 Nginx 层): max-age=31536000; includeSubDoma
 ## 四、实施清单
 
 - [x] SVG emoji 转义修复(G5,已完成)
-- [ ] 限流工具 + 各接口限额(G2/G3/G4)
-- [ ] 邀请码 + 注册开关(G1)
-- [ ] 登录失败锁定 + 审计日志(G2/G7)
-- [ ] `/api/search`、`/api/img` 补鉴权(G3)
-- [ ] 安全响应头(G6)
+- [x] 限流工具 + 各接口限额(G2/G3/G4,`src/lib/rate-limit.ts`)
+- [x] 邀请码 + 注册开关(G1,`INVITE_CODE` / `REGISTRATION_ENABLED`)
+- [x] 登录失败锁定 + 审计日志(G2/G7,`loginGuard` / `src/lib/audit.ts`)
+- [x] `/api/search`、`/api/img` 补鉴权与限流(G3)
+- [x] 安全响应头(G6,`next.config.mjs`)
 - [ ] 阿里云:WAF/监控/fail2ban/备份上 OSS(P1)
 
-> P0 全部实施约半天工作量;完成后该应用的安全水位对「个人/小圈子服务」绰绰有余,公开运营前再补 P1 的 WAF 与验证码即可。
+### P0 实施说明(已完成)
+
+| 限流点 | 维度 | 限额 |
+|---|---|---|
+| 登录回调 `/api/auth/callback/credentials` | IP + 邮箱 | 10 次 / 15 分钟 |
+| 注册 `/api/register` | IP | 3 次 / 小时 |
+| 全量重生成(plan/meals `scope=all`) | 用户(共享额度) | 6 次 / 小时 |
+| 单日重生成(plan/meals `scope=day`) | 用户 | 60 次 / 天 |
+| 来源检索 `/api/search`(需登录) | 用户 | 20 次 / 小时 |
+| 图片 `/api/img` | IP | 300 次 / 10 分钟 |
+| AI 建议 `/api/ai/tip` | 用户 | 30 次 / 天 |
+| CSV 导出 | 用户 | 30 次 / 小时 |
+| 打卡 | 用户 | 240 次 / 小时 |
+
+登录锁定:同账号连续失败 10 次锁定 30 分钟,期间统一返回「邮箱或密码不正确」(防账号枚举);审计日志为 JSON 行输出(`register` / `login` / `login_fail` / `login_blocked` / `plan_regen_all` / `meal_regen_all` / `export_csv`),可被 `docker logs` 或阿里云 SLS 收集。

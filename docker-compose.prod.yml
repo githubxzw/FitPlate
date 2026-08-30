@@ -50,6 +50,9 @@ services:
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       # 首次启动写入演示账号(demo@fitplate.app / fitplate123),生产建议保持 0 并自行注册
       SEED_ON_START: ${SEED_ON_START:-0}
+      # ---- 注册与访问控制 ----
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
+      INVITE_CODE: ${INVITE_CODE:-}
     ports:
       - "127.0.0.1:3000:3000"
 

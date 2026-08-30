@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
-import { handle, ok, ApiError, requireUserId } from "@/lib/api";
+import { handle, ok, ApiError, requireUserId, tooMany } from "@/lib/api";
 import { dateKeySchema } from "@/lib/validation";
 import { z } from "zod";
 import { planWindow, regenerateAllPlanDays, regeneratePlanDay } from "@/lib/plan-service";
 import { dateKey, parseDateKey, todayKey } from "@/lib/utils";
+import { rateLimit } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 
 /** GET /api/plan?from=YYYY-MM-DD&to=YYYY-MM-DD → 训练日列表 */
 export const GET = handle(async (req: Request) => {
@@ -37,7 +39,7 @@ export const GET = handle(async (req: Request) => {
   });
 });
 
-/** POST /api/plan → 生成/重新生成 { scope: "all" | "day", date? } */
+/** POST /api/plan → 生成/重新生成 { scope: "all" | "day", date? }(含频控) */
 export const POST = handle(async (req: Request) => {
   const userId = await requireUserId();
   const body = z
@@ -47,10 +49,16 @@ export const POST = handle(async (req: Request) => {
   if (!profile) throw new ApiError(404, "还没有档案,请先完成问卷");
 
   if (body.scope === "all") {
+    // 全量重生成是重操作:与饮食全量重生成共享每小时 6 次的额度
+    const rl = rateLimit(`gen-all:${userId}`, 6, 60 * 60_000);
+    if (!rl.ok) return tooMany(rl.retryAfterSec, "重新生成过于频繁,请稍后再试(每小时 6 次)");
     const result = await regenerateAllPlanDays(userId, profile, body.date ?? todayKey());
+    audit("plan_regen_all", { userId, from: result.from });
     return ok(result);
   }
   if (!body.date) throw new ApiError(422, "scope=day 时必须提供 date");
+  const rlDay = rateLimit(`gen-day:${userId}`, 60, 24 * 60 * 60_000);
+  if (!rlDay.ok) return tooMany(rlDay.retryAfterSec, "今日重新生成次数已达上限,请明天再试");
   const day = await regeneratePlanDay(userId, profile, body.date);
   return ok(day);
 });

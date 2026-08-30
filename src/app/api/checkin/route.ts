@@ -1,12 +1,15 @@
 import { db } from "@/lib/db";
-import { handle, ok, ApiError, requireUserId } from "@/lib/api";
+import { handle, ok, ApiError, requireUserId, tooMany } from "@/lib/api";
 import { checkinSchema } from "@/lib/validation";
 import { toggleMealSlot, updatePlanDay } from "@/lib/plan-service";
 import { dateKey, parseDateKey } from "@/lib/utils";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** POST /api/checkin → 打卡 { date, kind: workout|breakfast|lunch|dinner|snack, value } */
 export const POST = handle(async (req: Request) => {
   const userId = await requireUserId();
+  const rl = rateLimit(`checkin:${userId}`, 240, 60 * 60_000);
+  if (!rl.ok) return tooMany(rl.retryAfterSec, "打卡操作过于频繁,请稍后再试");
   const body = checkinSchema.parse(await req.json());
   const date = parseDateKey(body.date);
 

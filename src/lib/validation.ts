@@ -83,6 +83,7 @@ export const registerSchema = z.object({
   name: z.string().min(1, "请填写昵称").max(20),
   email: z.string().email("邮箱格式不正确"),
   password: z.string().min(8, "密码至少 8 位").max(72),
+  inviteCode: z.string().max(64).optional(),
 });
 
 export const generateSchema = z.object({

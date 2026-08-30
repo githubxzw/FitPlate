@@ -1,11 +1,14 @@
 import { db } from "@/lib/db";
-import { handle, ok, ApiError, requireUserId } from "@/lib/api";
+import { handle, ok, ApiError, requireUserId, tooMany } from "@/lib/api";
 import { ensureAiTips } from "@/lib/plan-service";
 import { AI_DISCLAIMER } from "@/lib/constants";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** GET /api/ai/tip?date=YYYY-MM-DD → 当日教练建议(AI 或规则引擎,含缓存) */
 export const GET = handle(async (req: Request) => {
   const userId = await requireUserId();
+  const rl = rateLimit(`ai:${userId}`, 30, 24 * 60 * 60_000);
+  if (!rl.ok) return tooMany(rl.retryAfterSec, "建议获取过于频繁,请明天再试");
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   if (!date) throw new ApiError(422, "缺少 date 参数");

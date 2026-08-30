@@ -1,18 +1,20 @@
 "use client";
 
 // 登录 / 注册(演示账号提示见页面下方)
+// 服务端可通过环境变量控制:REGISTRATION_ENABLED=false 关闭注册;INVITE_CODE 设置后注册必须携带邀请码
 
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Spinner } from "@/components/ui";
 
-export function LoginForm() {
+export function LoginForm({ registrationEnabled, inviteRequired }: { registrationEnabled: boolean; inviteRequired: boolean }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -25,7 +27,7 @@ export function LoginForm() {
         const res = await fetch("/api/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
+          body: JSON.stringify({ name, email, password, inviteCode: inviteCode || undefined }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "注册失败");
@@ -47,23 +49,29 @@ export function LoginForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
-        {(["login", "register"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => {
-              setMode(m);
-              setError(null);
-            }}
-            className={`rounded-lg py-1.5 text-sm font-medium transition ${
-              mode === m ? "bg-white shadow dark:bg-zinc-900" : "text-zinc-500 dark:text-zinc-400"
-            }`}
-          >
-            {m === "login" ? "登录" : "注册"}
-          </button>
-        ))}
-      </div>
+      {registrationEnabled ? (
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+          {(["login", "register"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                setMode(m);
+                setError(null);
+              }}
+              className={`rounded-lg py-1.5 text-sm font-medium transition ${
+                mode === m ? "bg-white shadow dark:bg-zinc-900" : "text-zinc-500 dark:text-zinc-400"
+              }`}
+            >
+              {m === "login" ? "登录" : "注册"}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl bg-zinc-100 px-3 py-2 text-center text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          本站暂未开放注册,已获账号请直接登录
+        </p>
+      )}
 
       {mode === "register" && (
         <div>
@@ -85,6 +93,14 @@ export function LoginForm() {
         </label>
         <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} placeholder="至少 8 位" />
       </div>
+      {mode === "register" && inviteRequired && (
+        <div>
+          <label className="label" htmlFor="invite">
+            邀请码
+          </label>
+          <input id="invite" className="input" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required placeholder="请向管理员获取" />
+        </div>
+      )}
 
       {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-900/30 dark:text-rose-300">{error}</p>}
 

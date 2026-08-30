@@ -1,19 +1,24 @@
 import { db } from "@/lib/db";
-import { fail, handle, ApiError, requireUserId } from "@/lib/api";
+import { fail, handle, ApiError, requireUserId, tooMany } from "@/lib/api";
 import { toCsv } from "@/lib/csv";
 import { buildShoppingList } from "@/lib/meal-engine";
 import { EXPORT_FOOTER } from "@/lib/constants";
+import { rateLimit } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
 import type { MealDayData, PlanBlocks } from "@/types";
 import { dateKey, parseDateKey, shortDate, weekdayLabel, MEAL_SLOT_LABEL, fromJson } from "@/lib/utils";
 
 /** GET /api/export/csv?type=workouts|meals|shopping&from&to → CSV 附件(带 BOM) */
 export const GET = handle(async (req: Request) => {
   const userId = await requireUserId();
+  const rl = rateLimit(`csv:${userId}`, 30, 60 * 60_000);
+  if (!rl.ok) return tooMany(rl.retryAfterSec, "导出过于频繁,请稍后再试");
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "workouts";
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const range = from && to ? { gte: parseDateKey(from), lte: parseDateKey(to) } : undefined;
+  audit("export_csv", { userId, type, from, to });
 
   let csv: string;
   let filename: string;

@@ -8,6 +8,9 @@ export default async function LoginPage() {
   const userId = await getUserIdOrNull();
   if (userId) redirect("/today");
 
+  const registrationEnabled = process.env.REGISTRATION_ENABLED !== "false";
+  const inviteRequired = Boolean(process.env.INVITE_CODE?.trim());
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-brand-50 via-zinc-50 to-sky-50 px-4 py-10 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
       <div className="w-full max-w-sm">
@@ -21,7 +24,7 @@ export default async function LoginPage() {
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">科学减脂,从一份可执行的计划开始</p>
         </div>
         <div className="card p-6">
-          <LoginForm />
+          <LoginForm registrationEnabled={registrationEnabled} inviteRequired={inviteRequired} />
         </div>
         <p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-400">{DISCLAIMER_SHORT}</p>
         <p className="mt-2 text-center text-[11px] text-zinc-300 dark:text-zinc-600">

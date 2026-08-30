@@ -18,6 +18,14 @@ export function fail(status: number, message: string, extra?: Record<string, unk
   return NextResponse.json({ ok: false, error: message, ...extra }, { status });
 }
 
+/** 429 限流响应(带 Retry-After) */
+export function tooMany(retryAfterSec: number, message = "请求过于频繁,请稍后再试") {
+  return NextResponse.json(
+    { ok: false, error: message, retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(Math.max(1, retryAfterSec)) } }
+  );
+}
+
 /** 包装路由处理器:统一捕获 ApiError / ZodError / 未知错误 */
 export function handle<A extends unknown[]>(fn: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
