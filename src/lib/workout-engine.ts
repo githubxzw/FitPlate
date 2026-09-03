@@ -3,7 +3,7 @@
 // 再按可用器械与水平筛选动作,生成 热身/力量/有氧/拉伸 四个区块。
 
 import { EXERCISES, EXERCISE_MAP, toItem, type Exercise } from "./exercises";
-import type { BlockItem, Intensity, PlanBlocks, PlanDayData, ProfileInput } from "@/types";
+import type { BlockItem, Intensity, PlanBlocks, PlanDayData, ProfileInput, WeekDayDef } from "@/types";
 import { addDays, dateKey, hashSeed, parseDateKey } from "./utils";
 
 type TemplateId = "fb_a" | "fb_b" | "upper" | "lower" | "push" | "pull" | "legs" | "core_cardio";
@@ -17,6 +17,8 @@ interface TemplateDef {
   title: string;
   slots: SlotDef[];
   cardioId: string[];
+  /** 增肌模式下额外追加的孤立动作槽位 */
+  bulkSlots?: SlotDef[];
 }
 
 const TEMPLATES: Record<TemplateId, TemplateDef> = {
@@ -29,6 +31,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-glute-bridge", "s-calf-raise"] },
       { pool: ["s-plank", "s-dead-bug"] },
     ],
+    bulkSlots: [{ pool: ["s-bb-squat", "s-db-goblet-squat"] }, { pool: ["s-calf-raise", "s-db-lateral-raise"] }],
     cardioId: ["c-brisk-walk", "c-bike", "c-elliptical", "c-stairs"],
   },
   fb_b: {
@@ -40,6 +43,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-db-curl", "s-dips-chair"] },
       { pool: ["s-dead-bug", "s-side-plank", "s-crunch"] },
     ],
+    bulkSlots: [{ pool: ["s-bb-row", "s-db-row"] }, { pool: ["s-hammer-curl", "s-db-curl"] }],
     cardioId: ["c-brisk-walk", "c-jump-rope", "c-bike", "c-jog"],
   },
   upper: {
@@ -51,6 +55,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-db-curl", "s-dips-chair"] },
       { pool: ["s-plank", "s-side-plank"] },
     ],
+    bulkSlots: [{ pool: ["s-bb-bench-press", "s-cable-fly"] }, { pool: ["s-bb-row", "s-hammer-curl"] }],
     cardioId: ["c-bike", "c-elliptical", "c-brisk-walk"],
   },
   lower: {
@@ -62,6 +67,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-calf-raise"] },
       { pool: ["s-wall-sit", "s-superman"] },
     ],
+    bulkSlots: [{ pool: ["s-bb-squat", "s-db-goblet-squat"] }, { pool: ["s-leg-press", "s-calf-raise"] }],
     cardioId: ["c-brisk-walk", "c-bike", "c-stairs", "c-elliptical"],
   },
   push: {
@@ -72,6 +78,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-incline-pushup", "s-pushup", "s-dips-chair"] },
       { pool: ["s-dips-chair", "s-db-curl"] },
     ],
+    bulkSlots: [{ pool: ["s-cable-fly", "s-db-lateral-raise"] }, { pool: ["s-db-lateral-raise", "s-cable-fly"] }],
     cardioId: ["c-elliptical", "c-bike", "c-jog", "c-brisk-walk"],
   },
   pull: {
@@ -82,6 +89,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       { pool: ["s-db-curl"] },
       { pool: ["s-superman", "s-dead-bug"] },
     ],
+    bulkSlots: [{ pool: ["s-bb-row", "s-hammer-curl"] }, { pool: ["s-hammer-curl", "s-bb-row"] }],
     cardioId: ["c-bike", "c-brisk-walk", "c-stairs"],
   },
   legs: {
@@ -157,26 +165,41 @@ function pickCardio(ids: string[], p: ProfileInput, seed: number): Exercise | nu
   return avail[seed % avail.length];
 }
 
-/** 水平 → 力量组数/次数/休息 */
+/** 水平 → 力量组数/次数/休息;增肌模式偏向肌肥大区间(6-12 次、组数+1、休息更长) */
 function volume(e: Exercise, p: ProfileInput) {
+  const bulk = p.goal === "bulk";
   const conf = {
     beginner: { sets: 3, restSec: 60 },
     intermediate: { sets: e.unit === "reps" ? 3 : 4, restSec: 75 },
     advanced: { sets: 4, restSec: 90 },
   }[p.experience];
+  let sets = conf.sets;
+  let restSec = conf.restSec;
   let reps = e.reps;
   if (p.experience === "advanced" && e.unit === "reps" && e.level === 3) reps = Math.max(6, reps - 2);
   if (p.experience === "beginner" && e.unit === "reps" && e.level === 1) reps = reps + 2;
-  return { sets: conf.sets, restSec: conf.restSec, reps };
+  if (bulk && e.type === "strength") {
+    sets = Math.min(5, sets + 1);
+    if (e.unit === "reps") {
+      reps = clampNum(reps, 8, 12); // 肌肥大次数区间
+      restSec = Math.max(restSec, 90);
+    }
+  }
+  return { sets, restSec, reps };
 }
 
-/** 有氧时长(分钟)按强度档调整 */
-function cardioMinutes(e: Exercise, intensity: Intensity, seed: number): number {
+function clampNum(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+/** 有氧时长(分钟)按强度档调整;增肌模式减半并封顶 20 分钟(保留心肺维护,不吃掉热量盈余) */
+function cardioMinutes(e: Exercise, intensity: Intensity, seed: number, bulk = false): number {
   const base = e.reps; // 15-30
   const jitter = (seed % 3) * 5;
   let m = Math.max(12, base - 5 + jitter);
   if (intensity === "light") m = Math.round(m * 0.66);
   if (intensity === "plus") m = Math.round(m * 1.25);
+  if (bulk) m = Math.min(20, Math.round(m * 0.5));
   return Math.min(45, m);
 }
 
@@ -225,7 +248,8 @@ export function buildTrainingDay(
 
   const warmup: BlockItem[] = pickRotate(WARMUP_IDS, 3, seed, p.equipment).map(toItem);
   const strength: BlockItem[] = [];
-  for (const slot of tpl.slots) {
+  const slots = p.goal === "bulk" && tpl.bulkSlots ? [...tpl.slots, ...tpl.bulkSlots] : tpl.slots;
+  for (const slot of slots) {
     const ex = pickFromPool(slot.pool, p, used);
     if (ex) {
       const v = volume(ex, p);
@@ -233,7 +257,7 @@ export function buildTrainingDay(
     }
   }
   const cardioEx = pickCardio(tpl.cardioId, p, seed);
-  const cardioMin = cardioEx ? cardioMinutes(cardioEx, intensity, seed) : 20;
+  const cardioMin = cardioEx ? cardioMinutes(cardioEx, intensity, seed, p.goal === "bulk") : 20;
   const cardio: BlockItem[] = cardioEx
     ? [{ ...toItem(cardioEx), repsOrDuration: cardioMin, unit: "minutes", sets: 1, restSec: 0 }]
     : [];
@@ -278,16 +302,43 @@ export function buildRestDay(p: ProfileInput, dateKeyStr: string, seedBase: numb
   };
 }
 
-/** 生成整个周期的训练日历 */
+/** 从自定义周模板的某一天生成计划日(template 型走模板;custom 型直接用用户动作清单) */
+export function buildDayFromWeekDef(p: ProfileInput, def: WeekDayDef, dateKeyStr: string, seedBase: number): PlanDayData {
+  if (def.type === "rest") return buildRestDay(p, dateKeyStr, seedBase);
+  if (def.type === "custom") {
+    // 直接采用用户编辑的区块(按当天强度档不再缩放,尊重手动结果)
+    const strengthMin = def.blocks.strength.reduce(
+      (s, it) => s + (it.sets ?? 3) * ((it.unit === "seconds" ? 1 : 0.75) + (it.restSec ?? 60) / 60),
+      0
+    );
+    const cardioMin = def.blocks.cardio.reduce((s, c) => s + (c.repsOrDuration ?? 0), 0);
+    return {
+      date: dateKeyStr,
+      isTraining: true,
+      focus: def.focus,
+      durationMin: Math.round(6 + strengthMin + cardioMin + 8),
+      blocks: def.blocks,
+    };
+  }
+  return buildTrainingDay(p, dateKeyStr, def.templateId as TemplateId, seedBase);
+}
+
+/** 生成整个周期的训练日历(启用自定义周模板时优先使用它) */
 export function generatePlan(p: ProfileInput, startDateKey: string, seedBase = 0): PlanDayData[] {
-  const week = WEEK_PLAN[weekKey(p)] ?? WEEK_PLAN["beginner-3"];
+  const useCustom = Boolean(p.customWeekEnabled && p.customWeek && p.customWeek.length === 7);
+  const week: (TemplateId | "rest")[] = useCustom ? [] : WEEK_PLAN[weekKey(p)] ?? WEEK_PLAN["beginner-3"];
   const start = parseDateKey(startDateKey);
   const out: PlanDayData[] = [];
   for (let i = 0; i < p.durationDays; i++) {
     const d = addDays(start, i);
     const dow = (d.getUTCDay() + 6) % 7; // 周一=0
-    const tplId = week[dow];
-    const day = tplId === "rest" ? buildRestDay(p, dateKey(d), seedBase) : buildTrainingDay(p, dateKey(d), tplId, seedBase);
+    let day: PlanDayData;
+    if (useCustom) {
+      day = buildDayFromWeekDef(p, p.customWeek![dow], dateKey(d), seedBase);
+    } else {
+      const tplId = week[dow];
+      day = tplId === "rest" ? buildRestDay(p, dateKey(d), seedBase) : buildTrainingDay(p, dateKey(d), tplId, seedBase);
+    }
     out.push(day);
   }
   return out;

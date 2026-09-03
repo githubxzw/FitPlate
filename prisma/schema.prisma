@@ -50,6 +50,9 @@ model Profile {
   budgetYuan          Float // 每日餐饮预算(元)
   cookMinutes         Int // 单餐可接受烹饪时长上限(分钟)
   flags               String[] // pregnancy | chronic | ed_history (仅用于提示咨询专业人士,不做医疗判断)
+  goal                String   @default("cut") // cut 减脂 | bulk 增肌 | maintain 维持体重
+  customWeek          Json? // 用户自定义周模板:WeekDayDef[7](周一..周日);null 表示未设置
+  customWeekEnabled   Boolean  @default(false) // 是否启用自定义周模板(替代内置 WEEK_PLAN)
   onboardedAt         DateTime?
   updatedAt           DateTime  @updatedAt
 

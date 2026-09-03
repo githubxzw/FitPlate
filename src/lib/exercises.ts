@@ -36,6 +36,8 @@ export const EXERCISES: Exercise[] = [
   { id: "s-incline-pushup", name: "上斜俯卧撑", emoji: "🪑", type: "strength", equipment: ["chair", "bench"], level: 1, muscle: "胸/肩/三头", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["撑于椅子/床沿", "核心收紧不塌腰"] },
   { id: "s-db-floor-press", name: "哑铃地板卧推", emoji: "🏋️", type: "strength", equipment: ["dumbbell", "bench"], level: 2, muscle: "胸/三头", unit: "reps", sets: 3, reps: 10, restSec: 90, tips: ["下放至大臂轻触地面", "呼气推起"] },
   { id: "s-bb-bench-press", name: "杠铃卧推", emoji: "🏋️", type: "strength", equipment: ["barbell"], level: 3, muscle: "胸/三头", unit: "reps", sets: 4, reps: 8, restSec: 120, tips: ["肩胛后收下沉", "全程有人保护或用安全架"] },
+  { id: "s-cable-fly", name: "绳索夹胸", emoji: "🛠️", type: "strength", equipment: ["cable"], level: 2, muscle: "胸", unit: "reps", sets: 3, reps: 12, restSec: 75, tips: ["手臂微屈固定角度", "胸前合拢挤压1秒"] },
+  { id: "s-db-lateral-raise", name: "哑铃侧平举", emoji: "🤸", type: "strength", equipment: ["dumbbell"], level: 1, muscle: "肩", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["重量宁小勿大", "抬至肩平即止,不耸肩"] },
   { id: "s-db-shoulder-press", name: "哑铃肩推", emoji: "🤗", type: "strength", equipment: ["dumbbell"], level: 2, muscle: "肩", unit: "reps", sets: 3, reps: 10, restSec: 90, tips: ["肋骨内收不要挺腰", "推至手臂接近伸直"] },
   { id: "s-pike-pushup", name: "折刀俯卧撑", emoji: "🔺", type: "strength", equipment: ["none", "mat"], level: 2, muscle: "肩/三头", unit: "reps", sets: 3, reps: 8, restSec: 75, tips: ["臀部抬高呈倒V", "头顶朝向地面下落"] },
   { id: "s-machine-press", name: "坐姿推胸机", emoji: "🛠️", type: "strength", equipment: ["machine"], level: 1, muscle: "胸/三头", unit: "reps", sets: 3, reps: 12, restSec: 75, tips: ["背部贴紧靠垫", "推出不完全锁肘"] },
@@ -43,15 +45,18 @@ export const EXERCISES: Exercise[] = [
 
   // ---- 力量:拉(背二头) ----
   { id: "s-db-row", name: "单臂哑铃划船", emoji: "🚣", type: "strength", equipment: ["dumbbell"], level: 2, muscle: "背", unit: "reps", sets: 3, reps: 10, restSec: 90, tips: ["背部平直,肘贴近身体", "用背发力而非手臂"] },
+  { id: "s-bb-row", name: "杠铃俯身划船", emoji: "🏋️", type: "strength", equipment: ["barbell"], level: 3, muscle: "背", unit: "reps", sets: 4, reps: 8, restSec: 120, tips: ["俯身约45°背部平直", "拉向下胸,肘贴身后拉"] },
   { id: "s-band-row", name: "弹力带划船", emoji: "➰", type: "strength", equipment: ["band"], level: 1, muscle: "背", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["肩胛先收再拉", "缓慢还原感受张力"] },
   { id: "s-water-row", name: "水瓶俯身划船", emoji: "🍶", type: "strength", equipment: ["none"], level: 1, muscle: "背", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["双手各握满水瓶", "俯身45°保持背部平直"] },
   { id: "s-pullup", name: "引体向上", emoji: "🧗", type: "strength", equipment: ["pullup_bar"], level: 3, muscle: "背", unit: "reps", sets: 4, reps: 6, restSec: 120, tips: ["从悬挂位拉至下巴过杠", "可用弹力带辅助"] },
   { id: "s-lat-pulldown", name: "高位下拉", emoji: "🛠️", type: "strength", equipment: ["machine", "cable"], level: 1, muscle: "背", unit: "reps", sets: 3, reps: 12, restSec: 75, tips: ["挺胸,杠拉向锁骨", "不要用惯性后仰"] },
   { id: "s-seated-row", name: "坐姿划船", emoji: "🛠️", type: "strength", equipment: ["machine", "cable"], level: 1, muscle: "背", unit: "reps", sets: 3, reps: 12, restSec: 75, tips: ["胸口顶住挡板", "肘部向后收"] },
   { id: "s-db-curl", name: "哑铃弯举", emoji: "💪", type: "strength", equipment: ["dumbbell"], level: 1, muscle: "二头", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["大臂固定,只动小臂", "顶端挤压1秒"] },
+  { id: "s-hammer-curl", name: "锤式弯举", emoji: "🔨", type: "strength", equipment: ["dumbbell"], level: 1, muscle: "二头/前臂", unit: "reps", sets: 3, reps: 12, restSec: 60, tips: ["掌心相对握哑铃", "缓慢下放2秒"] },
 
   // ---- 力量:腿臀 ----
   { id: "s-squat", name: "自重深蹲", emoji: "🦵", type: "strength", equipment: ["none"], level: 1, muscle: "腿臀", unit: "reps", sets: 3, reps: 15, restSec: 75, tips: ["膝盖与脚尖同向", "蹲到大腿接近平行地面"] },
+  { id: "s-bb-squat", name: "杠铃背蹲", emoji: "🏋️", type: "strength", equipment: ["barbell", "bench"], level: 3, muscle: "腿臀", unit: "reps", sets: 4, reps: 8, restSec: 150, tips: ["杠置于斜方肌上", "蹲至大腿平行或更低", "必要时用深蹲架安全销"] },
   { id: "s-db-goblet-squat", name: "哑铃杯式深蹲", emoji: "🏋️", type: "strength", equipment: ["dumbbell", "kettlebell"], level: 2, muscle: "腿臀", unit: "reps", sets: 3, reps: 12, restSec: 90, tips: ["重物贴胸", "全程核心收紧"] },
   { id: "s-lunge", name: "弓步蹲", emoji: "🚶", type: "strength", equipment: ["none"], level: 1, muscle: "腿臀", unit: "reps", sets: 3, reps: 10, restSec: 75, tips: ["每侧10次", "前膝不超过脚尖太多"] },
   { id: "s-glute-bridge", name: "臀桥", emoji: "🍑", type: "strength", equipment: ["mat", "none"], level: 1, muscle: "臀", unit: "reps", sets: 3, reps: 15, restSec: 60, tips: ["顶端夹臀1秒", "避免腰部代偿"] },

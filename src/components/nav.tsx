@@ -8,12 +8,19 @@ import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-const LINKS = [
+const LINKS: { href: string; label: string; emoji: string; exact?: boolean }[] = [
   { href: "/today", label: "今日", emoji: "🔥" },
-  { href: "/plan", label: "计划表", emoji: "📅" },
+  { href: "/plan", label: "计划表", emoji: "📅", exact: true },
+  { href: "/plan/customize", label: "周模板", emoji: "🗓️" },
   { href: "/shopping", label: "购物清单", emoji: "🛒" },
   { href: "/sources", label: "参考来源", emoji: "📚" },
 ];
+
+/** 高亮判断:/plan 需要精确匹配,否则「计划表」会与「周模板」同时高亮 */
+function linkActive(pathname: string, href: string, exact?: boolean): boolean {
+  if (exact) return pathname === href;
+  return pathname.startsWith(href);
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -57,7 +64,7 @@ export function Nav({ userName, userEmail }: { userName?: string | null; userEma
               href={l.href}
               className={cn(
                 "rounded-xl px-3 py-1.5 text-sm transition",
-                pathname.startsWith(l.href)
+                linkActive(pathname, l.href, l.exact)
                   ? "bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
                   : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               )}
@@ -85,7 +92,7 @@ export function Nav({ userName, userEmail }: { userName?: string | null; userEma
             href={l.href}
             className={cn(
               "flex flex-col items-center rounded-lg px-3 py-1 text-[11px]",
-              pathname.startsWith(l.href) ? "text-brand-600 dark:text-brand-400" : "text-zinc-500 dark:text-zinc-400"
+              linkActive(pathname, l.href, l.exact) ? "text-brand-600 dark:text-brand-400" : "text-zinc-500 dark:text-zinc-400"
             )}
           >
             <span aria-hidden>{l.emoji}</span>

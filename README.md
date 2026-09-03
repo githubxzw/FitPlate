@@ -1,6 +1,6 @@
 # FitPlate 🥗 — 健身减脂规划 Web 应用
 
-面向希望科学减脂、规律训练的普通用户:填写基本信息、目标与偏好后,自动生成**每日训练计划**与**每日减脂餐配方**,支持打卡、调整、重新生成,并可导出周期计划表、饮食规划表与购物清单。
+面向希望科学增肌、减脂或维持体重的普通用户:填写目标、基本信息与偏好后,自动生成**每日训练计划**与**每日餐食配方**,支持打卡、**逐日自定义训练项**、自定义每周安排,并可导出周期计划表、饮食规划表与购物清单。
 
 > ⚠️ **免责声明**:FitPlate 生成的一切热量目标、宏量营养素分配、训练计划与食谱均为基于公开健康指南的参考估算,**不构成医疗诊断、治疗或营养处方**。涉及疾病、孕期/哺乳期、未成年人或饮食障碍史时,请先咨询医生或注册营养师。
 
@@ -14,12 +14,13 @@ FitPlate
 │   ├── /login            登录 / 注册(演示账号:demo@fitplate.app / fitplate123)
 │   └── /api/*            REST API(见 §3)
 └── 需登录(中间件保护)
-    ├── /onboarding       用户档案问卷:3 步(基本信息 → 目标与训练 → 饮食偏好),带实时代谢预估;可随时回来编辑
-    ├── /today            ★ 首页「今日计划」:训练卡(四区块+要点+打卡+强度档+替换/编辑动作)、
+    ├── /onboarding       用户档案问卷:3 步(目标与基本信息 → 训练安排 → 饮食偏好),带实时代谢预估;可随时回来编辑
+    ├── /today            ★ 首页「今日计划」:训练卡(四区块+要点+打卡+强度档+自由编辑:添加/删除/排序/替换动作)、
     │                     四餐卡(图片/热量/打卡/换一道/调份量)、完成度进度环、营养素对比图、
     │                     教练提示(AI/规则)、参考来源
     ├── /plan             周视图(健身计划表 + 饮食规划表 + 周完成度图)/ 月历视图;
     │                     打印样式、导出 PDF(打印对话框)、CSV 导出(训练/饮食/购物)
+    │   └── /plan/customize  我的周模板:逐天选「休息 / 内置模板 / 自定义动作清单」,启用后每天生成都按它执行
     ├── /meal/[date]/[slot]  食谱详情:成品图、营养、食材克数、步骤、烹饪时长、替代食材、换一道/调份量
     ├── /shopping         购物清单:按食材自动合并克数、分组、勾选、范围切换、打印/CSV
     └── /sources          可信来源库 + 联网检索(白名单域名),展示标题/链接/访问日期
@@ -28,7 +29,8 @@ FitPlate
 ## 2. 数据模型(Prisma / PostgreSQL)
 
 ```
-User 1 ─── 1 Profile          档案:身体数据、目标、运动基础、器械、饮食偏好/过敏/忌口、预算、烹饪时长、特殊状况
+User 1 ─── 1 Profile          档案:目标类型(cut减脂/bulk增肌/maintain维持)、身体数据、运动基础、器械、
+      │                        饮食偏好/过敏/忌口、预算、烹饪时长、特殊状况、自定义周模板(customWeek)
      ├── * PlanDay            每日训练:date、focus、isTraining、intensity(light/standard/plus)、
      │                        blocks(JSON: warmup/strength/cardio/stretch)、aiTips、sources、completed
      └── * MealDay            每日饮食:date、targetKcal/P/C/F、slots(JSON: 四餐完整内容)、
@@ -47,7 +49,8 @@ User 1 ─── 1 Profile          档案:身体数据、目标、运动基础�
 | GET/PUT | `/api/profile` | 读取/保存档案问卷(PUT 会把起始日重置为今天) |
 | GET | `/api/plan?from&to` | 周期内训练日列表(含 blocks/aiTips/sources/completed) |
 | POST | `/api/plan` | 生成/重生成 `{scope:"all"\|"day", date?}` |
-| PATCH | `/api/plan/day` | 编辑单日训练 `{date, intensity?}`(自动重缩放)/ `{date, blocks?}` / `{date, completed?}` |
+| PATCH | `/api/plan/day` | 编辑单日训练 `{date, intensity?}`(自动重缩放)/ `{date, blocks?}`(自由编辑:增删排序改数值) / `{date, completed?}` |
+| GET/PUT | `/api/plan/week` | 读取/保存「我的周模板」`{week: WeekDayDef[7], enabled, regenerate?}`(regenerate 时按新模板重生成,保留已打卡) |
 | GET | `/api/meals?from&to` | 周期内饮食日列表(含四餐/目标/打卡) |
 | POST | `/api/meals?scope=all\|day&date=` | 生成/重生成饮食 |
 | PATCH | `/api/meals/day` | 单餐 `{date, slot, action:"swap"}` 或 `{date, slot, action:"scale", scale}` |

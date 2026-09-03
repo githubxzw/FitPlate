@@ -1,7 +1,7 @@
 // 日期与通用工具:所有日期统一按 UTC 存储/比较,避免时区偏移问题
 
-// 餐次标签(运行时常量,定义在 types.ts,这里 re-export 便于客户端引用)
-export { MEAL_SLOT_LABEL } from "@/types";
+// 餐次与目标标签(运行时常量,定义在 types.ts,这里 re-export 便于客户端引用)
+export { MEAL_SLOT_LABEL, GOAL_LABEL, GOAL_MEAL_LABEL, GOAL_HINT } from "@/types";
 
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");

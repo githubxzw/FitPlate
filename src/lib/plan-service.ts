@@ -2,7 +2,7 @@
 
 import { db } from "./db";
 import { deriveTargets } from "./calc";
-import { generatePlan, buildTrainingDay, buildRestDay } from "./workout-engine";
+import { generatePlan, buildTrainingDay, buildRestDay, buildDayFromWeekDef } from "./workout-engine";
 import { generateMealDay, replaceSlot as engineReplaceSlot, rescaleSlot } from "./meal-engine";
 import { WEEK_PLAN } from "./workout-engine";
 import { mealSources, planSources } from "./search";
@@ -37,6 +37,9 @@ export function profileToInput(profile: Profile): ProfileInput {
     budgetYuan: profile.budgetYuan,
     cookMinutes: profile.cookMinutes,
     flags: profile.flags,
+    goal: (profile.goal as ProfileInput["goal"]) ?? "cut",
+    customWeek: profile.customWeek ? fromJson<ProfileInput["customWeek"]>(profile.customWeek) : undefined,
+    customWeekEnabled: profile.customWeekEnabled,
   };
 }
 
@@ -75,7 +78,7 @@ export async function regenerateAllPlanDays(userId: string, profile: Profile, fr
       isTraining: d.isTraining,
       focus: d.focus,
       blocks: asJson(d.blocks),
-      aiTips: d.isTraining && aiEnabled() ? undefined : ruleTips(d.focus), // AI 建议按需生成,先给规则提示
+      aiTips: d.isTraining && aiEnabled() ? undefined : ruleTips(d.focus, p.goal), // AI 建议按需生成,先给规则提示
       sources: asJson(planSources()),
       seed,
     }));
@@ -88,11 +91,16 @@ export async function regeneratePlanDay(userId: string, profile: Profile, dateKe
   const p = profileToInput(profile);
   const d = parseDateKey(dateKeyStr);
   const dow = (d.getUTCDay() + 6) % 7;
-  const weekKey = `${p.experience}-${Math.min(7, Math.max(1, p.trainingDaysPerWeek))}`;
-  const tplId = (WEEK_PLAN[weekKey] ?? WEEK_PLAN["beginner-3"])[dow];
+  const useCustom = Boolean(p.customWeekEnabled && p.customWeek && p.customWeek.length === 7);
   const seed = seedBase ?? hashSeed(`${userId}${dateKeyStr}re${Math.floor(Math.random() * 1e6)}`) % 100000;
-  const day: PlanDayData =
-    tplId === "rest" ? buildRestDay(p, dateKeyStr, seed) : buildTrainingDay(p, dateKeyStr, tplId as never, seed);
+  let day: PlanDayData;
+  if (useCustom) {
+    day = buildDayFromWeekDef(p, p.customWeek![dow], dateKeyStr, seed);
+  } else {
+    const weekKey = `${p.experience}-${Math.min(7, Math.max(1, p.trainingDaysPerWeek))}`;
+    const tplId = (WEEK_PLAN[weekKey] ?? WEEK_PLAN["beginner-3"])[dow];
+    day = tplId === "rest" ? buildRestDay(p, dateKeyStr, seed) : buildTrainingDay(p, dateKeyStr, tplId as never, seed);
+  }
 
   await db.planDay.upsert({
     where: { userId_date: { userId, date: d } },
@@ -102,7 +110,7 @@ export async function regeneratePlanDay(userId: string, profile: Profile, dateKe
       isTraining: day.isTraining,
       focus: day.focus,
       blocks: asJson(day.blocks),
-      aiTips: ruleTips(day.focus),
+      aiTips: ruleTips(day.focus, p.goal),
       sources: asJson(planSources()),
       seed,
     },
@@ -111,7 +119,7 @@ export async function regeneratePlanDay(userId: string, profile: Profile, dateKe
       focus: day.focus,
       blocks: asJson(day.blocks),
       intensity: "standard",
-      aiTips: ruleTips(day.focus),
+      aiTips: ruleTips(day.focus, p.goal),
       sources: asJson(planSources()),
       seed,
       completed: false,
@@ -235,8 +243,9 @@ export async function scaleMealSlot(userId: string, dateKeyStr: string, slot: Me
 
 /** AI 教练建议(按需生成并缓存到当天计划;失败回退规则提示) */
 export async function ensureAiTips(userId: string, profile: Profile, dateKeyStr: string): Promise<string[]> {
+  const p = profileToInput(profile);
   const day = await db.planDay.findUnique({ where: { userId_date: { userId, date: parseDateKey(dateKeyStr) } } });
-  if (!day) return ruleTips("训练");
+  if (!day) return ruleTips("训练", p.goal);
   if (Array.isArray(day.aiTips) && day.aiTips.length > 0) return fromJson<string[]>(day.aiTips);
   const targets = targetsFor(profile);
   const tips = aiEnabled()
@@ -245,11 +254,12 @@ export async function ensureAiTips(userId: string, profile: Profile, dateKeyStr:
         age: profile.age,
         experience: profile.experience,
         goal: `${profile.weightKg}kg→${profile.goalWeightKg}kg`,
+        audienceGoal: p.goal ?? "cut",
         focus: day.focus,
         targetKcal: targets.targetKcal,
         protein: targets.protein,
       })
-    : ruleTips(day.focus);
+    : ruleTips(day.focus, p.goal);
   await db.planDay.update({ where: { id: day.id }, data: { aiTips: tips } });
   return tips;
 }

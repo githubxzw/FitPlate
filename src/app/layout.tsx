@@ -3,9 +3,9 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "FitPlate · 健身减脂规划",
+  title: "FitPlate · 健身规划(增肌/减脂)",
   description:
-    "科学减脂,从一份可执行的计划开始:每日训练 + 减脂餐配方 + 打卡与导出。热量与运动建议仅供参考,不构成医疗或营养治疗建议。",
+    "科学增肌减脂,从一份可执行的计划开始:每日训练 + 三餐配方 + 打卡与导出。热量与运动建议仅供参考,不构成医疗或营养治疗建议。",
 };
 
 export const viewport: Viewport = {

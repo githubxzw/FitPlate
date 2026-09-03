@@ -37,7 +37,7 @@ async function main() {
     heightCm: 175,
     weightKg: 78,
     bodyFatPct: 22,
-    goalWeightKg: 71,
+    goalWeightKg: 81,
     durationDays: 30,
     experience: "intermediate",
     trainingDaysPerWeek: 4,
@@ -49,14 +49,17 @@ async function main() {
     budgetYuan: 45,
     cookMinutes: 35,
     flags: [],
+    goal: "bulk", // 演示账号展示增肌模式(减脂可自行在问卷里切换)
   };
 
   console.log("→ 写入档案 …");
   const start = parseDateKey(todayKey());
+  // customWeek/customWeekEnabled 为 Json/可选字段,演示账号不预设(使用系统自动模板)
+  const { customWeek: _omitWeek, customWeekEnabled: _omitEnabled, ...profileData } = input;
   const profile = await db.profile.upsert({
     where: { userId: user.id },
-    update: { ...input, startDate: start },
-    create: { userId: user.id, ...input, startDate: start, onboardedAt: new Date() },
+    update: { ...profileData, startDate: start },
+    create: { userId: user.id, ...profileData, startDate: start, onboardedAt: new Date() },
   });
 
   const targets = deriveTargets(input);
@@ -76,7 +79,7 @@ async function main() {
         isTraining: day.isTraining,
         focus: day.focus,
         blocks: asJson(day.blocks),
-        aiTips: ruleTips(day.focus),
+        aiTips: ruleTips(day.focus, input.goal),
         sources: asJson(planSources()),
         seed: planSeed,
         completed: i === 0 || i === 1, // 演示:前两天已完成

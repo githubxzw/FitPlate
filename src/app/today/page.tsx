@@ -50,6 +50,7 @@ export default async function TodayPage() {
           weekday={weekdayLabel(today)}
           greeting={greeting()}
           userName={user?.name}
+          goal={(profile.goal as "cut" | "bulk" | "maintain") ?? "cut"}
           targets={{
             targetKcal: targets.targetKcal,
             protein: targets.protein,

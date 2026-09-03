@@ -3,12 +3,12 @@
 //       份量缩放(0.6~1.6)对齐热量 → 汇总购物清单。
 
 import { ALLERGEN_MAP, RECIPES, RECIPE_MAP, type Recipe } from "./recipes";
-import { SLOT_SHARE } from "./calc";
-import type { MealDayData, MealIngredient, MealSlot, MealSlotType, NutritionTargets, ProfileInput } from "@/types";
+import { slotShareFor } from "./calc";
+import type { Goal, MealDayData, MealIngredient, MealSlot, MealSlotType, NutritionTargets, ProfileInput } from "@/types";
 import { clamp, hashSeed, round5 } from "./utils";
 
 /** 允许传宽松目标(便于测试),生产使用完整 NutritionTargets */
-export type NutritionTargetsLike = Pick<NutritionTargets, "targetKcal">;
+export type NutritionTargetsLike = Pick<NutritionTargets, "targetKcal"> & { goal?: NutritionTargets["goal"] };
 
 const SLOT_ORDER: MealSlotType[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -20,13 +20,32 @@ const SLOT_MINUTES_CAP: Record<MealSlotType, number> = {
   snack: 0.3,
 };
 
-/** 每餐预算占比 */
+/** 每餐预算占比(减脂/维持) */
 const SLOT_BUDGET_SHARE: Record<MealSlotType, number> = {
   breakfast: 0.25,
   lunch: 0.38,
   dinner: 0.32,
   snack: 0.1,
 };
+
+/** 每餐预算占比(增肌:加餐预算与热量占比一致,否则大容量加餐会被预算挡掉) */
+const SLOT_BUDGET_SHARE_BULK: Record<MealSlotType, number> = {
+  breakfast: 0.24,
+  lunch: 0.33,
+  dinner: 0.27,
+  snack: 0.16,
+};
+
+function budgetShareFor(goal?: Goal): Record<MealSlotType, number> {
+  return goal === "bulk" ? SLOT_BUDGET_SHARE_BULK : SLOT_BUDGET_SHARE;
+}
+
+/** 增肌模式:优先保留「份量拉满(×2)仍基本够到该餐目标」的食谱,避免热量长期欠账;无则回退原列表 */
+function preferCapacity(list: Recipe[], slotKcal: number, goal?: Goal): Recipe[] {
+  if (goal !== "bulk") return list;
+  const capable = list.filter((r) => r.baseKcal * 2 >= slotKcal * 0.85);
+  return capable.length > 0 ? capable : list;
+}
 
 function hitAllergy(recipe: Recipe, allergies: string[]): boolean {
   const text = recipe.ingredients.map((i) => i.name).join("|");
@@ -38,8 +57,8 @@ function hitDislike(recipe: Recipe, disliked: string[]): boolean {
   return disliked.some((d) => d.trim() && (text.includes(d.trim()) || recipe.name.includes(d.trim())));
 }
 
-/** 偏好匹配得分(素食为硬性约束) */
-function prefScore(recipe: Recipe, prefs: string[]): number {
+/** 偏好匹配得分(素食为硬性约束);增肌模式下高蛋白/高热量权重更高,轻食降权 */
+function prefScore(recipe: Recipe, prefs: string[], goal?: Goal): number {
   let score = 0;
   for (const pref of prefs) {
     if (pref === "素食" && recipe.tags.includes("素食")) score += 3;
@@ -47,6 +66,14 @@ function prefScore(recipe: Recipe, prefs: string[]): number {
     if (pref === "快手菜" && recipe.minutes <= 20) score += 2;
     if (pref === "爱吃辣" && recipe.tags.includes("微辣")) score += 2;
     if (pref === "低碳水" && recipe.carbs <= recipe.baseKcal * 0.12) score += 2;
+  }
+  if (goal === "bulk") {
+    if (recipe.tags.includes("高蛋白")) score += 1;
+    if (recipe.tags.includes("增肌")) score += 3;
+    if (recipe.tags.includes("低卡")) score -= 2;
+    if (recipe.baseKcal >= 450) score += 1; // 优先厚实的一餐
+  } else if (goal === "cut") {
+    if (recipe.tags.includes("低卡")) score += 1;
   }
   return score;
 }
@@ -66,7 +93,7 @@ function hasMeat(recipe: Recipe): boolean {
 }
 
 /** 带渐进放宽的候选筛选:保证任何配置下都有候选 */
-function candidates(p: ProfileInput, opts: CandidateOpts): Recipe[] {
+function candidates(p: ProfileInput, opts: CandidateOpts, goal?: Goal): Recipe[] {
   const isVeg = p.dietPrefs.includes("素食");
   const base = RECIPES.filter((r) => r.slots.includes(opts.slot));
 
@@ -85,7 +112,7 @@ function candidates(p: ProfileInput, opts: CandidateOpts): Recipe[] {
   ]) {
     const list = base
       .filter((r) => passes(r, relax))
-      .map((r) => ({ r, score: prefScore(r, p.dietPrefs) + (r.costYuan <= opts.slotBudget ? 1 : 0) }))
+      .map((r) => ({ r, score: prefScore(r, p.dietPrefs, goal) + (r.costYuan <= opts.slotBudget ? 1 : 0) }))
       .sort((a, b) => b.score - a.score)
       .map((x) => x.r);
     if (list.length > 0) return list;
@@ -95,9 +122,9 @@ function candidates(p: ProfileInput, opts: CandidateOpts): Recipe[] {
   return safeList.length > 0 ? safeList : base.filter((r) => !hitAllergy(r, p.allergies));
 }
 
-/** 按目标热量缩放一份食谱 */
-export function scaleRecipe(recipe: Recipe, targetKcal: number): MealSlot {
-  const scale = clamp(targetKcal / recipe.baseKcal, 0.6, 1.6);
+/** 按目标热量缩放一份食谱(bulk 时放宽上限到 2.0,否则高热量目标下会被钳住) */
+export function scaleRecipe(recipe: Recipe, targetKcal: number, maxScale = 1.6): MealSlot {
+  const scale = clamp(targetKcal / recipe.baseKcal, 0.6, maxScale);
   const r5 = (n: number) => Math.max(5, round5(n));
   return {
     recipeId: recipe.id,
@@ -155,32 +182,38 @@ export function generateMealDay(
   const seed = hashSeed(`${p.sex}${p.budgetYuan}${p.cookMinutes}${dateKeyStr}${seedBase}`);
   const data: Partial<Record<MealSlotType, MealSlot>> = {};
   const dayUsed = new Set<string>();
+  // 目标以 targets 为准,档案兜底(测试里常只传 targets)
+  const goal = targets.goal ?? p.goal;
+  const bulk = goal === "bulk";
+  const maxScale = bulk ? 2.0 : 1.6;
 
   for (const slot of SLOT_ORDER) {
-    const targetKcal = Math.round(targets.targetKcal * SLOT_SHARE[slot]);
-    const slotBudget = p.budgetYuan * SLOT_BUDGET_SHARE[slot];
+    const targetKcal = Math.round(targets.targetKcal * slotShareFor(goal)[slot]);
+    const slotBudget = p.budgetYuan * budgetShareFor(goal)[slot];
     const minutesCap = Math.max(5, Math.round(p.cookMinutes * SLOT_MINUTES_CAP[slot]));
-    let list = candidates(p, { slot, slotKcal: targetKcal, slotBudget, minutesCap });
+    let list = preferCapacity(candidates(p, { slot, slotKcal: targetKcal, slotBudget, minutesCap }, goal), targetKcal, goal);
     // 优先避开本周已用/当日已用
     const fresh = list.filter((r) => !dayUsed.has(r.id) && !(usedIds && usedIds.has(r.id)));
     const notSameDay = list.filter((r) => !dayUsed.has(r.id));
     list = fresh.length > 0 ? fresh : notSameDay.length > 0 ? notSameDay : list;
     const recipe = list[seed % list.length];
     dayUsed.add(recipe.id);
-    data[slot] = scaleRecipe(recipe, targetKcal);
+    data[slot] = scaleRecipe(recipe, targetKcal, maxScale);
   }
   return data as MealDayData;
 }
 
 /** 换掉某一餐(重新生成单个槽位) */
 export function replaceSlot(p: ProfileInput, dateKeyStr: string, slot: MealSlotType, targets: NutritionTargetsLike, excludeIds: string[] = []): MealSlot {
-  const targetKcal = Math.round(targets.targetKcal * SLOT_SHARE[slot]);
-  const slotBudget = p.budgetYuan * SLOT_BUDGET_SHARE[slot];
+  const goal = targets.goal ?? p.goal;
+  const targetKcal = Math.round(targets.targetKcal * slotShareFor(goal)[slot]);
+  const slotBudget = p.budgetYuan * budgetShareFor(goal)[slot];
   const minutesCap = Math.max(5, Math.round(p.cookMinutes * SLOT_MINUTES_CAP[slot]));
-  const list = candidates(p, { slot, slotKcal: targetKcal, slotBudget, minutesCap }).filter((r) => !excludeIds.includes(r.id));
-  const finalList = list.length > 0 ? list : candidates(p, { slot, slotKcal: targetKcal, slotBudget, minutesCap });
+  const all = candidates(p, { slot, slotKcal: targetKcal, slotBudget, minutesCap }, goal);
+  const list = preferCapacity(all, targetKcal, goal).filter((r) => !excludeIds.includes(r.id));
+  const finalList = list.length > 0 ? list : all;
   const seed = hashSeed(`${dateKeyStr}${slot}${excludeIds.length}${Math.random()}`);
-  return scaleRecipe(finalList[seed % finalList.length], targetKcal);
+  return scaleRecipe(finalList[seed % finalList.length], targetKcal, goal === "bulk" ? 2.0 : 1.6);
 }
 
 /** 应用用户份量缩放 */

@@ -8,10 +8,11 @@ import { useState, useTransition } from "react";
 import { Badge, Card, CheckButton, EmptyState, Modal, SectionTitle, Spinner, Stat, Toast, Disclaimer } from "@/components/ui";
 import { ProgressRing, MacroBars } from "@/components/charts";
 import { SmartImage } from "@/components/smart-image";
+import { BlocksEditor, estimateMinutes } from "@/components/blocks-editor";
 import { suggestReplacements } from "@/lib/workout-engine";
 import { EXERCISE_MAP } from "@/lib/exercises";
-import type { BlockItem, MealDayData, MealSlot, MealSlotType, PlanBlocks, ProfileInput, SourceRef } from "@/types";
-import { DIFFICULTY_LABEL, INTENSITY_LABEL, MEAL_SLOT_LABEL } from "@/lib/utils";
+import type { BlockItem, Goal, MealDayData, MealSlot, MealSlotType, PlanBlocks, ProfileInput, SourceRef } from "@/types";
+import { DIFFICULTY_LABEL, GOAL_LABEL, GOAL_MEAL_LABEL, INTENSITY_LABEL, MEAL_SLOT_LABEL } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 export interface TodayProps {
@@ -19,6 +20,7 @@ export interface TodayProps {
   weekday: string;
   greeting: string;
   userName?: string | null;
+  goal: Goal;
   targets: { targetKcal: number; protein: number; carbs: number; fat: number; weeklyChangeKg: number };
   weightKg: number;
   goalWeightKg: number;
@@ -159,21 +161,28 @@ export function TodayClient(props: TodayProps) {
               </div>
 
               {/* 动作列表 */}
-              <BlockList
-                blocks={editing && editBlocks ? editBlocks : plan.blocks}
-                onEdit={(b) => {
-                  setEditBlocks(b);
-                  setEditing(true);
-                }}
-                editing={editing}
-                onReplace={(item) => setSwapFor(item)}
-                onRegenerateDay={() =>
-                  run("regen-day", () => api("/api/plan", { scope: "day", date: props.date }), "今日训练已重新生成")
-                }
-                regenBusy={busy === "regen-day" || pending}
-                date={props.date}
-                isRest={!plan.isTraining}
-              />
+              {editing && editBlocks ? (
+                <BlocksEditor
+                  blocks={editBlocks}
+                  onChange={setEditBlocks}
+                  equipment={props.profileInput.equipment}
+                  maxLevel={props.profileInput.experience === "advanced" ? 3 : props.profileInput.experience === "intermediate" ? 2 : 1}
+                />
+              ) : (
+                <BlockList
+                  blocks={plan.blocks}
+                  onStartEdit={(b) => {
+                    setEditBlocks(b);
+                    setEditing(true);
+                  }}
+                  onReplace={(item) => setSwapFor(item)}
+                  onRegenerateDay={() =>
+                    run("regen-day", () => api("/api/plan", { scope: "day", date: props.date }), "今日训练已重新生成")
+                  }
+                  regenBusy={busy === "regen-day" || pending}
+                  isRest={!plan.isTraining}
+                />
+              )}
 
               {editing && editBlocks && (
                 <div className="mt-3 flex gap-2">
@@ -244,7 +253,7 @@ export function TodayClient(props: TodayProps) {
             <Card>
               <SectionTitle
                 icon="🍽️"
-                title="今日减脂餐"
+                title={`今日${GOAL_MEAL_LABEL[props.goal]}`}
                 right={
                   <button
                     className="btn-ghost text-xs"
@@ -328,6 +337,14 @@ export function TodayClient(props: TodayProps) {
           <Card className="flex flex-col items-center">
             <SectionTitle icon="✅" title="今日完成度" className="w-full" />
             <ProgressRing value={pct} label={`${doneCount}/${total}`} sub="训练 + 三餐 + 加餐" />
+            <div className="mt-2 flex w-full items-center gap-1.5">
+              <Badge tone={props.goal === "bulk" ? "amber" : props.goal === "maintain" ? "sky" : "emerald"}>
+                {props.goal === "bulk" ? "🔺 增肌中" : props.goal === "maintain" ? "⚖️ 维持中" : "🔻 减脂中"}
+              </Badge>
+              <Link href="/onboarding" className="ml-auto text-[11px] text-zinc-400 underline">
+                切换目标
+              </Link>
+            </div>
             <div className="mt-2 grid w-full grid-cols-2 gap-2">
               <Stat label="计划摄入" value={`${plannedKcal}`} sub="kcal" />
               <Stat label="热量目标" value={`${props.targets.targetKcal}`} sub="kcal / 天" />
@@ -395,10 +412,11 @@ export function TodayClient(props: TodayProps) {
                   key={id}
                   className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 p-3 text-left text-sm hover:border-brand-400 dark:border-zinc-700"
                   onClick={() => {
-                    if (!editBlocks) return;
+                    const base = editBlocks ?? plan?.blocks;
+                    if (!base) return;
                     const blocks: PlanBlocks = {
-                      ...editBlocks,
-                      strength: editBlocks.strength.map((it) =>
+                      ...base,
+                      strength: base.strength.map((it) =>
                         it.exerciseId === swapFor.exerciseId
                           ? { ...it, exerciseId: ex.id, name: ex.name, emoji: ex.emoji, sets: ex.sets, repsOrDuration: ex.reps, unit: ex.unit, restSec: ex.restSec, tips: ex.tips }
                           : it
@@ -432,33 +450,20 @@ export function TodayClient(props: TodayProps) {
   );
 }
 
-function estimateMinutes(blocks: PlanBlocks): number {
-  const strengthMin = blocks.strength.reduce(
-    (s, it) => s + (it.sets ?? 3) * (0.75 + (it.restSec ?? 60) / 60),
-    0
-  );
-  const cardioMin = blocks.cardio.reduce((s, c) => s + (c.repsOrDuration ?? 0), 0);
-  return Math.round(6 + strengthMin + cardioMin + 8);
-}
-
-/** 训练区块列表:支持「编辑数值」与「替换动作」 */
+/** 训练区块列表(只读视图):支持「替换动作」与进入自定义编辑 */
 function BlockList({
   blocks,
-  onEdit,
-  editing,
+  onStartEdit,
   onReplace,
   onRegenerateDay,
   regenBusy,
-  date,
   isRest,
 }: {
   blocks: PlanBlocks;
-  onEdit: (b: PlanBlocks) => void;
-  editing: boolean;
+  onStartEdit: (b: PlanBlocks) => void;
   onReplace: (item: BlockItem) => void;
   onRegenerateDay: () => void;
   regenBusy: boolean;
-  date: string;
   isRest: boolean;
 }) {
   const [openTips, setOpenTips] = useState<string | null>(null);
@@ -468,62 +473,6 @@ function BlockList({
     { title: "有氧", emoji: "🏃", items: blocks.cardio },
     { title: "拉伸放松", emoji: "🧘", items: blocks.stretch },
   ];
-
-  if (editing) {
-    return (
-      <div className="space-y-3">
-        {blocks.strength.map((it, idx) => (
-          <div key={it.exerciseId + idx} className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 p-2.5 text-sm dark:border-zinc-700">
-            <span aria-hidden>{it.emoji}</span>
-            <span className="font-medium">{it.name}</span>
-            <label className="ml-auto text-xs text-zinc-500">
-              组数
-              <input
-                type="number"
-                min={1}
-                max={8}
-                className="input ml-1 w-14 px-2 py-1"
-                value={it.sets ?? 3}
-                onChange={(e) => {
-                  const next = { ...blocks, strength: blocks.strength.map((x, i) => (i === idx ? { ...x, sets: Number(e.target.value) } : x)) };
-                  onEdit(next);
-                }}
-              />
-            </label>
-            <label className="text-xs text-zinc-500">
-              {it.unit === "seconds" ? "秒数" : it.unit === "minutes" ? "分钟" : "次数"}
-              <input
-                type="number"
-                min={1}
-                max={300}
-                className="input ml-1 w-16 px-2 py-1"
-                value={it.repsOrDuration ?? 10}
-                onChange={(e) => {
-                  const next = { ...blocks, strength: blocks.strength.map((x, i) => (i === idx ? { ...x, repsOrDuration: Number(e.target.value) } : x)) };
-                  onEdit(next);
-                }}
-              />
-            </label>
-            <label className="text-xs text-zinc-500">
-              休息(秒)
-              <input
-                type="number"
-                min={0}
-                max={300}
-                className="input ml-1 w-16 px-2 py-1"
-                value={it.restSec ?? 60}
-                onChange={(e) => {
-                  const next = { ...blocks, strength: blocks.strength.map((x, i) => (i === idx ? { ...x, restSec: Number(e.target.value) } : x)) };
-                  onEdit(next);
-                }}
-              />
-            </label>
-          </div>
-        ))}
-        <p className="text-xs text-zinc-400">编辑模式:仅力量动作数值可改;替换动作请先退出编辑,再点动作旁的「换」。</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-3">
@@ -571,9 +520,12 @@ function BlockList({
             </ul>
           </div>
         ))}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <button className="btn-ghost text-xs" disabled={regenBusy} onClick={onRegenerateDay}>
           {regenBusy ? <Spinner /> : "🔄"} 换一套今日训练
+        </button>
+        <button className="btn-soft text-xs" onClick={() => onStartEdit(blocks)} disabled={regenBusy}>
+          ✏️ 编辑动作项
         </button>
       </div>
     </div>

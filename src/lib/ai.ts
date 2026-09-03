@@ -59,17 +59,25 @@ export async function coachTips(input: {
   age: number;
   experience: string;
   goal: string;
+  /** 结构化目标模式,用于挑选提示池与模型受众描述 */
+  audienceGoal?: "cut" | "bulk" | "maintain";
   focus: string;
   targetKcal: number;
   protein: number;
 }): Promise<string[]> {
+  const audience =
+    input.audienceGoal === "bulk"
+      ? "以增肌为目标的训练者(干净增重,重视渐进超负荷与碳水/蛋白质摄入)"
+      : input.audienceGoal === "maintain"
+        ? "以维持体重与体能进步为目标的训练者"
+        : "普通减脂人群";
   const raw = await aiJson(
-    "你是一名认证健身教练。用简体中文输出 2-3 条简短、安全、可执行的建议,面向普通减脂人群。禁止医疗诊断与药物建议。输出 JSON: {\"tips\": string[]}",
+    `你是一名认证健身教练。用简体中文输出 2-3 条简短、安全、可执行的建议,面向${audience}。禁止医疗诊断与药物建议。输出 JSON: {"tips": string[]}`,
     JSON.stringify(input),
     TipsSchema
   );
   if (raw) return raw.tips;
-  return ruleTips(input.focus);
+  return ruleTips(input.focus, input.audienceGoal);
 }
 
 const RULE_TIP_POOL = [
@@ -85,7 +93,22 @@ const RULE_TIP_POOL = [
   "拉伸不是可有可无的,它决定你明天的训练状态。",
 ];
 
-export function ruleTips(focus: string): string[] {
+/** 增肌专属提示 */
+const BULK_TIP_POOL = [
+  "增肌的核心是渐进超负荷:每周尝试比上周多 1 次或加一点重量。",
+  "主力量动作保持 6-12 次、组间休息 90-120 秒,给肌肉恢复时间。",
+  "训练后 1 小时内吃到碳水+蛋白质,抓住合成窗口。",
+  "干净增重:每周体重上升 0.25~0.5 kg 最理想,涨太快就减一点份量。",
+  "睡眠是天然的合成代谢剂,争取 7-9 小时。",
+  "有氧减量但不取消,20 分钟以内能维护心肺又不影响恢复。",
+  "每个部位每周练到 2 次,比一次练爆更利于增长。",
+];
+
+export function ruleTips(focus: string, goal?: string): string[] {
+  if (goal === "bulk") {
+    const idx = Math.abs(focus.length * 7) % BULK_TIP_POOL.length;
+    return [BULK_TIP_POOL[idx], BULK_TIP_POOL[(idx + 3) % BULK_TIP_POOL.length]];
+  }
   const idx = Math.abs(focus.length * 7) % RULE_TIP_POOL.length;
   return [RULE_TIP_POOL[idx], RULE_TIP_POOL[(idx + 3) % RULE_TIP_POOL.length]];
 }

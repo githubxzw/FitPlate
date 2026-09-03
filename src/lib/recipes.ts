@@ -612,6 +612,77 @@ export const RECIPES: Recipe[] = [
       { for: "红薯", options: ["紫薯", "山药", "蒸玉米"] },
     ],
   },
+
+  // ================= 增肌向(大容量) =================
+  {
+    id: "bg-bulk-oats", name: "牛奶香蕉花生燕麦杯", emoji: "🥣", slots: ["breakfast"],
+    tags: ["高蛋白", "增肌", "快手"], difficulty: 1, minutes: 10, costYuan: 12, baseKcal: 680,
+    kcal: 680, protein: 33, carbs: 92, fat: 21,
+    ingredients: [
+      { name: "燕麦片", grams: 80, cat: "主食" },
+      { name: "牛奶", grams: 300, cat: "乳品" },
+      { name: "香蕉", grams: 100, cat: "蔬果", note: "1根" },
+      { name: "花生酱", grams: 15, cat: "干货坚果" },
+      { name: "鸡蛋", grams: 50, cat: "蛋白质", note: "水煮1个" },
+    ],
+    steps: ["燕麦加牛奶微波3分钟或小火煮5分钟。", "拌入花生酱,香蕉切片铺面。", "另水煮蛋1个同吃。"],
+    substitutes: [
+      { for: "花生酱", options: ["无糖杏仁酱", "腰果酱", "一勺乳清蛋白粉"] },
+      { for: "牛奶", options: ["无糖豆浆", "高钙燕麦奶"] },
+    ],
+  },
+  {
+    id: "ln-bulk-beef-rice", name: "黑椒牛里脊双份糙米饭", emoji: "🥩", slots: ["lunch", "dinner"],
+    tags: ["高蛋白", "增肌"], difficulty: 2, minutes: 30, costYuan: 24, baseKcal: 660,
+    kcal: 660, protein: 43, carbs: 72, fat: 22,
+    ingredients: [
+      { name: "牛里脊", grams: 130, cat: "蛋白质" },
+      { name: "糙米饭", grams: 260, cat: "主食", note: "熟重,约110g生米" },
+      { name: "西兰花", grams: 150, cat: "蔬果" },
+      { name: "番茄", grams: 100, cat: "蔬果" },
+      { name: "橄榄油", grams: 8, cat: "调味" },
+      { name: "黑胡椒", grams: 2, cat: "调味" },
+    ],
+    steps: ["牛里脊切条,黑胡椒+少许盐腌10分钟。", "不粘锅少油大火煎2分钟,断生即起。", "西兰花焯水,番茄切块同炒。", "全部盖在双份糙米饭上。"],
+    substitutes: [
+      { for: "牛里脊", options: ["鸡胸肉", "猪里脊", "虾仁"] },
+      { for: "糙米饭", options: ["白米饭+杂粮", "蒸土豆", "意面"] },
+    ],
+  },
+  {
+    id: "dn-bulk-salmon-potato", name: "香烤三文鱼配大份土豆", emoji: "🐟", slots: ["dinner", "lunch"],
+    tags: ["高蛋白", "增肌", "深海鱼"], difficulty: 2, minutes: 30, costYuan: 30, baseKcal: 600,
+    kcal: 600, protein: 38, carbs: 48, fat: 26,
+    ingredients: [
+      { name: "三文鱼", grams: 140, cat: "蛋白质" },
+      { name: "马铃薯", grams: 300, cat: "主食" },
+      { name: "芦笋", grams: 120, cat: "蔬果" },
+      { name: "橄榄油", grams: 6, cat: "调味" },
+      { name: "柠檬", grams: 20, cat: "调味" },
+    ],
+    steps: ["马铃薯切块煮8分,烤箱200℃烤15分钟。", "三文鱼抹橄榄油烤10分钟,柠檬汁提味。", "芦笋同盘烤5分钟。"],
+    substitutes: [
+      { for: "三文鱼", options: ["鳕鱼", "鸡腿排", "龙利鱼"] },
+      { for: "马铃薯", options: ["红薯", "糙米饭", "意面"] },
+    ],
+  },
+  {
+    id: "sn-bulk-shake", name: "增肌香蕉燕麦奶昔", emoji: "🥤", slots: ["snack"],
+    tags: ["高蛋白", "增肌", "免烹饪", "素食"], difficulty: 1, minutes: 5, costYuan: 9, baseKcal: 530,
+    kcal: 530, protein: 26, carbs: 76, fat: 14,
+    ingredients: [
+      { name: "牛奶", grams: 300, cat: "乳品" },
+      { name: "香蕉", grams: 120, cat: "蔬果" },
+      { name: "燕麦片", grams: 40, cat: "主食" },
+      { name: "花生酱", grams: 15, cat: "干货坚果" },
+      { name: "无糖酸奶", grams: 100, cat: "乳品" },
+    ],
+    steps: ["全部材料入料理杯打30秒。", "训练后30分钟内喝掉,补充碳水+蛋白质。"],
+    substitutes: [
+      { for: "花生酱", options: ["无糖杏仁酱", "一勺乳清蛋白粉"] },
+      { for: "燕麦片", options: ["即食燕麦", "半根红薯蒸熟打匀"] },
+    ],
+  },
 ];
 
 export const RECIPE_MAP: Record<string, Recipe> = Object.fromEntries(RECIPES.map((r) => [r.id, r]));

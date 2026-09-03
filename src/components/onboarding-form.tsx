@@ -7,9 +7,10 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner, Badge } from "@/components/ui";
-import { ALLERGY_OPTIONS, DEFAULT_GYM_EQUIPMENT, DEFAULT_HOME_EQUIPMENT, DIET_PREF_OPTIONS, EQUIPMENT_OPTIONS, FLAG_OPTIONS } from "@/lib/constants";
-import { calcBMR, activityFactor } from "@/lib/calc";
+import { ALLERGY_OPTIONS, DEFAULT_GYM_EQUIPMENT, DEFAULT_HOME_EQUIPMENT, DIET_PREF_OPTIONS, EQUIPMENT_OPTIONS, FLAG_OPTIONS, GOAL_OPTIONS } from "@/lib/constants";
+import { calcBMR, activityFactor, deriveTargets } from "@/lib/calc";
 import { cn } from "@/lib/utils";
+import type { Goal } from "@/types";
 
 export interface ProfileFormState {
   sex: "male" | "female";
@@ -29,6 +30,7 @@ export interface ProfileFormState {
   budgetYuan: number;
   cookMinutes: number;
   flags: string[];
+  goal: Goal;
 }
 
 export const DEFAULT_FORM: ProfileFormState = {
@@ -49,6 +51,7 @@ export const DEFAULT_FORM: ProfileFormState = {
   budgetYuan: 40,
   cookMinutes: 30,
   flags: [],
+  goal: "cut",
 };
 
 export function toggle(list: string[], v: string): string[] {
@@ -143,7 +146,7 @@ const FIELD_HINT: Record<string, string> = {
 };
 
 const FIELD_STEP: Record<string, number> = {
-  sex: 0, age: 0, heightCm: 0, weightKg: 0, bodyFatPct: 0,
+  goal: 0, sex: 0, age: 0, heightCm: 0, weightKg: 0, bodyFatPct: 0,
   goalWeightKg: 1, durationDays: 1, experience: 1, trainingDaysPerWeek: 1, place: 1, equipment: 1,
   dietPrefs: 2, allergies: 2, disliked: 2, budgetYuan: 2, cookMinutes: 2, flags: 2,
 };
@@ -163,12 +166,36 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
     const age = n(f.age);
     const h = n(f.heightCm);
     const w = n(f.weightKg);
+    const gw = n(f.goalWeightKg);
     const bf = f.bodyFatPct.trim() === "" ? null : n(f.bodyFatPct);
     if (![age, h, w].every(Number.isFinite) || (bf !== null && !Number.isFinite(bf))) return null;
     const bmr = calcBMR({ sex: f.sex, age, heightCm: h, weightKg: w, bodyFatPct: bf });
     const tdee = bmr * activityFactor(Number(f.trainingDaysPerWeek));
-    return { bmr: Math.round(bmr), tdee: Math.round(tdee) };
-  }, [f.sex, f.age, f.heightCm, f.weightKg, f.bodyFatPct, f.trainingDaysPerWeek]);
+    let targets: ReturnType<typeof deriveTargets> | null = null;
+    if (Number.isFinite(gw)) {
+      targets = deriveTargets({
+        sex: f.sex,
+        age,
+        heightCm: h,
+        weightKg: w,
+        bodyFatPct: bf,
+        goalWeightKg: gw,
+        durationDays: f.durationDays,
+        experience: f.experience,
+        trainingDaysPerWeek: Number(f.trainingDaysPerWeek) || 3,
+        place: f.place,
+        equipment: f.equipment,
+        dietPrefs: f.dietPrefs,
+        allergies: f.allergies,
+        disliked: f.disliked,
+        budgetYuan: Number(f.budgetYuan) || 40,
+        cookMinutes: Number(f.cookMinutes) || 30,
+        flags: f.flags,
+        goal: f.goal,
+      });
+    }
+    return { bmr: Math.round(bmr), tdee: Math.round(tdee), targets };
+  }, [f.sex, f.age, f.heightCm, f.weightKg, f.goalWeightKg, f.bodyFatPct, f.trainingDaysPerWeek, f.durationDays, f.experience, f.place, f.equipment, f.dietPrefs, f.allergies, f.disliked, f.budgetYuan, f.cookMinutes, f.flags, f.goal]);
 
   function changePlace(place: "home" | "gym") {
     setF((p) => ({
@@ -176,6 +203,21 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
       place,
       equipment: place === "gym" ? DEFAULT_GYM_EQUIPMENT : DEFAULT_HOME_EQUIPMENT,
     }));
+  }
+
+  /** 切换目标:顺带给出合适的目标体重默认值(增肌 +3kg / 减脂 -当前-5kg / 维持 = 当前) */
+  function setGoal(goal: Goal) {
+    setF((p) => {
+      const w = Number(p.weightKg);
+      const cur = Number(p.goalWeightKg);
+      let goalWeightKg = p.goalWeightKg;
+      if (Number.isFinite(w) && w > 0) {
+        if (goal === "bulk" && !(cur > w)) goalWeightKg = String(Math.round((w + 3) * 10) / 10);
+        if (goal === "cut" && !(cur < w)) goalWeightKg = String(Math.round((w - Math.max(2, w * 0.06)) * 10) / 10);
+        if (goal === "maintain") goalWeightKg = String(w);
+      }
+      return { ...p, goal, goalWeightKg };
+    });
   }
 
   /** 提交前的本地校验:空值/范围给出具体中文提示,失败返回所在步骤 */
@@ -268,6 +310,27 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
 
       {step === 0 && (
         <div className="space-y-4">
+          <div>
+            <span className="label">我的目标</span>
+            <div className="grid grid-cols-3 gap-2">
+              {GOAL_OPTIONS.map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => setGoal(g.value)}
+                  className={cn(
+                    "rounded-xl border p-2.5 text-left text-sm transition",
+                    f.goal === g.value ? "border-brand-600 bg-brand-50 dark:bg-brand-900/30" : "border-zinc-200 dark:border-zinc-700"
+                  )}
+                >
+                  <div className="font-medium">
+                    <span aria-hidden>{g.emoji}</span> {g.label}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-snug text-zinc-400">{g.hint}</div>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <span className="label">性别</span>
@@ -309,8 +372,10 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label" htmlFor="goal">目标体重(kg)</label>
-              <NumInput id="goal" value={f.goalWeightKg} onChange={(v) => set("goalWeightKg", v)} placeholder="如 65" />
+              <label className="label" htmlFor="goal">
+                目标体重(kg){f.goal === "bulk" ? " · 建议高于当前 2~4 kg" : f.goal === "maintain" ? " · 维持可填当前体重" : ""}
+              </label>
+              <NumInput id="goal" value={f.goalWeightKg} onChange={(v) => set("goalWeightKg", v)} placeholder={f.goal === "bulk" ? "如 73" : "如 65"} />
             </div>
             <div>
               <span className="label">计划周期</span>
@@ -462,12 +527,31 @@ export function OnboardingForm({ initial }: { initial?: Partial<ProfileFormState
                 <>
                   <Badge tone="sky">预估基础代谢 ≈ {preview.bmr} kcal</Badge>
                   <Badge tone="emerald">预估每日消耗 ≈ {preview.tdee} kcal</Badge>
+                  {preview.targets && (
+                    <>
+                      <Badge tone={f.goal === "bulk" ? "amber" : "brand"}>
+                        每日目标 ≈ {preview.targets.targetKcal} kcal
+                        {preview.targets.deficitKcal !== 0 &&
+                          `(${preview.targets.deficitKcal > 0 ? "+" : ""}${preview.targets.deficitKcal})`}
+                      </Badge>
+                      <Badge tone="zinc">
+                        {f.goal === "bulk" ? "🔺 增肌" : f.goal === "maintain" ? "⚖️ 维持" : "🔻 减脂"} · 蛋白 {preview.targets.protein}g · 每周
+                        {preview.targets.weeklyChangeKg >= 0 ? `+${preview.targets.weeklyChangeKg}` : preview.targets.weeklyChangeKg}kg
+                      </Badge>
+                    </>
+                  )}
                 </>
               ) : (
                 <span className="text-xs text-zinc-400">回第 1 步填写完整的身高体重后,这里会实时显示代谢预估。</span>
               )}
             </div>
-            <p className="mt-2 text-xs text-zinc-400">保存后系统会按缺口给出每日热量与蛋白质目标;所有数值仅供参考。</p>
+            <p className="mt-2 text-xs text-zinc-400">
+              {f.goal === "bulk"
+                ? "保存后系统会按小幅盈余给出热量与碳水/蛋白质目标,训练偏向肌肥大区间;所有数值仅供参考。"
+                : f.goal === "maintain"
+                  ? "保存后系统会按维持热量给出目标,训练与饮食保持均衡;所有数值仅供参考。"
+                  : "保存后系统会按缺口给出每日热量与蛋白质目标;所有数值仅供参考。"}
+            </p>
           </div>
         </div>
       )}

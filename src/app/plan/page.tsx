@@ -34,9 +34,14 @@ export default async function PlanPage() {
               {win.from} 至 {win.to} · 共 {profile.durationDays} 天 · 每日目标 {targets.targetKcal} kcal
             </p>
           </div>
-          <a href="/onboarding" className="btn-ghost text-xs">
-            调整目标 / 偏好
-          </a>
+          <div className="flex gap-2">
+            <a href="/plan/customize" className="btn-soft text-xs">
+              🗓️ 自定义周模板
+            </a>
+            <a href="/onboarding" className="btn-ghost text-xs">
+              调整目标 / 偏好
+            </a>
+          </div>
         </div>
 
         {planDays.length === 0 && mealDays.length === 0 ? (

@@ -30,6 +30,7 @@ export default async function OnboardingPage() {
         budgetYuan: profile.budgetYuan,
         cookMinutes: profile.cookMinutes,
         flags: profile.flags,
+        goal: (profile.goal as ProfileFormState["goal"]) ?? "cut",
       }
     : undefined;
 
@@ -39,7 +40,7 @@ export default async function OnboardingPage() {
       <main className="mx-auto max-w-2xl px-4 py-8">
         <h1 className="mb-1 text-2xl font-bold">{profile ? "编辑资料" : "先认识一下你"}</h1>
         <p className="mb-6 text-sm text-zinc-500 dark:text-zinc-400">
-          {profile ? "保存后将从今天开始重新生成计划(已打卡的日期会保留)。" : "3 步填写基本信息与偏好,系统会生成每日训练与减脂餐计划。"}
+          {profile ? "保存后将从今天开始重新生成计划(已打卡的日期会保留)。" : "3 步填写基本信息与偏好,系统会按你的目标(减脂/增肌/维持)生成每日训练与餐食计划。"}
         </p>
         <OnboardingForm initial={initial} />
       </main>

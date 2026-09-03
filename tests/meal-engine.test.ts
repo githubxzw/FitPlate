@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildShoppingList, generateMealDay, replaceSlot, scaleRecipe, RECIPE } from "./helpers";
+import { SLOT_SHARE_BULK } from "@/lib/calc";
 
 const base = {
   sex: "female" as const,
@@ -22,6 +23,73 @@ const base = {
 };
 
 const targets = { targetKcal: 1500 };
+
+describe("增肌(bulk)食谱", () => {
+  const bulkTargets = { targetKcal: 3200, goal: "bulk" as const };
+
+  it("加餐按更高占比分配(接近目标的16%)", () => {
+    const day = generateMealDay(base, "2026-09-01", bulkTargets, 3);
+    const want = Math.round(3200 * SLOT_SHARE_BULK.snack);
+    expect(Math.abs(day.snack.kcal - want) / want).toBeLessThan(0.45);
+  });
+
+  it("高热量目标下份量缩放可超过 1.6(bulk 上限放宽到 2.0)", () => {
+    const day = generateMealDay(base, "2026-09-01", bulkTargets, 3);
+    const slots = [day.breakfast, day.lunch, day.dinner, day.snack];
+    expect(slots.some((s) => s.scale > 1.6)).toBe(true);
+    for (const s of slots) expect(s.scale).toBeLessThanOrEqual(2.0);
+  });
+
+  it("cut 目标仍按 1.6 上限缩放", () => {
+    const day = generateMealDay(base, "2026-09-01", { targetKcal: 3200, goal: "cut" }, 3);
+    for (const s of [day.breakfast, day.lunch, day.dinner, day.snack]) expect(s.scale).toBeLessThanOrEqual(1.6);
+  });
+
+  it("bulk 单日热量仍接近目标(±25%)", () => {
+    const day = generateMealDay(base, "2026-09-01", bulkTargets, 9);
+    const total = day.breakfast.kcal + day.lunch.kcal + day.dinner.kcal + day.snack.kcal;
+    expect(Math.abs(total - 3200) / 3200).toBeLessThan(0.25);
+  });
+
+  it("bulk 优先选份量够得到目标的食谱(多日合计不长期欠账)", () => {
+    for (let seed = 0; seed < 5; seed++) {
+      const day = generateMealDay(base, `2026-09-0${seed + 1}`, bulkTargets, seed);
+      const total = day.breakfast.kcal + day.lunch.kcal + day.dinner.kcal + day.snack.kcal;
+      expect(total).toBeGreaterThanOrEqual(3200 * 0.8);
+    }
+  });
+
+  it("海鲜过敏者不会被推荐增肌海鲜食谱", () => {
+    for (let i = 0; i < 20; i++) {
+      const day = generateMealDay({ ...base, allergies: ["海鲜"] }, `2026-09-0${(i % 9) + 1}`, bulkTargets, i);
+      for (const slot of [day.breakfast, day.lunch, day.dinner, day.snack]) {
+        expect(slot.recipeId).not.toMatch(/salmon|shrimp|tuna|cod/);
+        const names = slot.ingredients.map((x) => x.name).join("|");
+        expect(names).not.toMatch(/虾|三文|金枪|鲈|鳕|龙利/);
+      }
+    }
+  });
+
+  it("素食者不会被推荐含肉增肌食谱", () => {
+    for (let i = 0; i < 20; i++) {
+      const day = generateMealDay({ ...base, dietPrefs: ["素食"] }, `2026-09-0${(i % 9) + 1}`, bulkTargets, i);
+      for (const slot of [day.breakfast, day.lunch, day.dinner, day.snack]) {
+        expect(slot.recipeId).not.toMatch(/beef|salmon|chicken|tuna|shrimp/);
+      }
+    }
+  });
+
+  it("四道增肌食谱营养内部一致且可被缩放", () => {
+    for (const id of ["bg-bulk-oats", "ln-bulk-beef-rice", "dn-bulk-salmon-potato", "sn-bulk-shake"]) {
+      const r = RECIPE(id);
+      const kcal = r.protein * 4 + r.carbs * 4 + r.fat * 9;
+      expect(Math.abs(kcal - r.kcal) / r.kcal).toBeLessThan(0.2);
+      const scaled = scaleRecipe(r, r.baseKcal, 2.0);
+      expect(scaled.ingredients).toHaveLength(r.ingredients.length);
+      expect(scaled.tags).toContain("增肌");
+    }
+  });
+});
 
 describe("食谱生成:过敏原与忌口过滤", () => {
   it("海鲜过敏者不会被推荐含虾/鱼/三文鱼的食谱", () => {

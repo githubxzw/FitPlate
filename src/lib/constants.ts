@@ -37,3 +37,27 @@ export const EQUIPMENT_OPTIONS: { value: string; label: string; places: string[]
 
 export const DEFAULT_HOME_EQUIPMENT = ["mat", "dumbbell", "band", "chair"];
 export const DEFAULT_GYM_EQUIPMENT = ["mat", "dumbbell", "band", "bench", "barbell", "machine", "cable", "cardio_machine"];
+
+/** 目标类型选项(问卷第 1 步) */
+export const GOAL_OPTIONS: { value: "cut" | "bulk" | "maintain"; label: string; emoji: string; hint: string }[] = [
+  { value: "cut", label: "减脂", emoji: "🔻", hint: "热量缺口,优先保肌肉、控体脂" },
+  { value: "bulk", label: "增肌", emoji: "🔺", hint: "小幅盈余,肌肥大训练为主,有氧减半" },
+  { value: "maintain", label: "维持体重", emoji: "⚖️", hint: "按维持热量,重点在力量与心肺进步" },
+];
+
+/** 内置周模板 id 列表(与 workout-engine.TEMPLATES 一致;放这里供 zod schema 与前端复用,避免循环依赖) */
+export const TEMPLATE_IDS = ["fb_a", "fb_b", "upper", "lower", "push", "pull", "legs", "core_cardio"] as const;
+export type TemplateIdValue = (typeof TEMPLATE_IDS)[number];
+
+export const TEMPLATE_LABEL: Record<string, string> = {
+  fb_a: "全身力量 A(下肢+推)",
+  fb_b: "全身力量 B(髋铰链+拉)",
+  upper: "上肢力量(推+拉)",
+  lower: "下肢力量(腿臀)",
+  push: "推日(胸肩三头)",
+  pull: "拉日(背二头)",
+  legs: "腿日(力量+有氧)",
+  core_cardio: "核心 + 有氧",
+};
+
+export const WEEKDAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];

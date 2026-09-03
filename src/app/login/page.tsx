@@ -21,7 +21,7 @@ export default async function LoginPage() {
           <h1 className="text-2xl font-bold">
             Fit<span className="text-brand-600">Plate</span>
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">科学减脂,从一份可执行的计划开始</p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">科学增肌减脂,从一份可执行的计划开始</p>
         </div>
         <div className="card p-6">
           <LoginForm registrationEnabled={registrationEnabled} inviteRequired={inviteRequired} />
