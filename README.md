@@ -11,7 +11,7 @@
 ```
 FitPlate
 ├── 公开
-│   ├── /login            登录 / 注册(演示账号:demo@fitplate.app / fitplate123)
+│   ├── /login            登录 / 注册(注册受 INVITE_CODE 邀请码保护,见 .env)
 │   └── /api/*            REST API(见 §3)
 └── 需登录(中间件保护)
     ├── /onboarding       用户档案问卷:3 步(目标与基本信息 → 训练安排 → 饮食偏好),带实时代谢预估;可随时回来编辑
@@ -142,11 +142,12 @@ cp .env.example .env        # 按需修改;NEXTAUTH_SECRET 生产环境务必替
 
 # 4) 建表 + 种子数据
 npm run db:push
-npm run db:seed             # 创建演示账号与 30 天完整计划
+SEED_DEMO=1 npm run db:seed # (可选)本地创建演示账号与 30 天完整计划;默认跳过以防生产泄露
 
 # 5) 启动
 npm run dev                 # http://localhost:3000
-# 演示账号:demo@fitplate.app / fitplate123
+# 演示账号(仅本地,需上面 SEED_DEMO=1 才会创建):demo@fitplate.app / fitplate123
+# 生产环境:用邀请码注册自己的账号,切勿运行演示 seed(密码已公开在源码里)
 ```
 
 生产部署:`npm run build && npm start`(需要环境变量中的 DATABASE_URL / NEXTAUTH_URL / NEXTAUTH_SECRET)。

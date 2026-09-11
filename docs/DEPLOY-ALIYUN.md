@@ -91,8 +91,9 @@ vim .env
 | `NEXTAUTH_SECRET` | ✅ | 全新随机值:`openssl rand -base64 32` |
 | `POSTGRES_PASSWORD` | ✅ | 强密码(compose 用它初始化数据库) |
 | `TZ` | 建议 | `Asia/Shanghai` |
+| `INVITE_CODE` | **强烈建议** | 注册邀请码;设置后只有持码用户可注册(邀请制)。不设置则任何人可注册 |
 | `AI_API_KEY` / `PEXELS_API_KEY` / `TAVILY_API_KEY` | 可选 | 不配则自动降级,功能完整 |
-| `SEED_ON_START` | 可选 | 首次启动想自动创建演示账号设 `1`(密码公开,正式使用务必改回 0 并自己注册账号) |
+| `SEED_ON_START` | 可选 | 首次启动想自动创建演示账号设 `1`(密码公开,正式使用务必改回 0 并自己注册账号)。seed 现已加安全护栏,仅 SEED_ON_START=1 时容器内会自动附带 SEED_DEMO=1 |
 | `NPM_REGISTRY` | 建议 | `https://registry.npmmirror.com`(加速镜像构建) |
 | `PRISMA_ENGINES_MIRROR` | 建议 | `https://registry.npmmirror.com/-/binary/prisma` |
 | `NODE_IMAGE` | 可选 | `docker.m.daocloud.io/library/node:20-alpine`(加速器不可用时的兜底) |
@@ -123,7 +124,7 @@ docker compose -f docker-compose.prod.yml up -d
 docker exec fitplate-app npm run db:seed
 ```
 
-> 演示账号 `demo@fitplate.app / fitplate123` 仅用于体验;正式使用请注册自己的账号。
+> 演示账号 `demo@fitplate.app / fitplate123` 仅用于体验(须 SEED_DEMO=1 才会创建);正式使用请用邀请码注册自己的账号。
 
 ## 6. 域名、备案与 HTTPS
 

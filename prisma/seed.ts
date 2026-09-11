@@ -1,6 +1,8 @@
-// 种子数据:创建演示账号并生成完整周期计划,便于快速体验
+// 种子数据:默认创建一个演示账号并生成完整周期计划,便于本地快速体验
 // 运行:npm run db:seed
-// 演示账号:demo@fitplate.app / fitplate123
+// ⚠️ 安全:演示账号的邮箱密码是公开写在源码里的。生产环境禁止执行本脚本;
+//    如确需演示数据,显式设置 SEED_DEMO=1(见 docs/DEPLOY.md)
+// 演示账号:demo@fitplate.app / fitplate123(仅限本地开发)
 
 import { PrismaClient, Prisma } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
@@ -23,6 +25,14 @@ const DEMO_EMAIL = "demo@fitplate.app";
 const DEMO_PASSWORD = "fitplate123";
 
 async function main() {
+  // 安全护栏:未显式要求演示数据时直接跳过(防止生产环境被公开密码的账号入侵)
+  if (process.env.SEED_DEMO !== "1") {
+    console.log("⏭️  已跳过演示数据(seed.ts 会创建公开密码的演示账号)。");
+    console.log("   本地开发需要演示数据请运行:SEED_DEMO=1 npm run db:seed");
+    console.log("   生产环境请直接在页面上注册(受 INVITE_CODE 邀请码保护)。");
+    return;
+  }
+
   console.log("→ 创建演示用户 …");
   const passwordHash = hashPassword(DEMO_PASSWORD);
   const user = await db.user.upsert({

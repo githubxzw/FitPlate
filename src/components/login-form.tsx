@@ -1,6 +1,6 @@
 "use client";
 
-// 登录 / 注册(演示账号提示见页面下方)
+// 登录 / 注册表单
 // 服务端可通过环境变量控制:REGISTRATION_ENABLED=false 关闭注册;INVITE_CODE 设置后注册必须携带邀请码
 
 import { signIn } from "next-auth/react";
@@ -108,10 +108,6 @@ export function LoginForm({ registrationEnabled, inviteRequired }: { registratio
         {busy && <Spinner />}
         {mode === "login" ? "登录" : "注册并开始"}
       </button>
-
-      <p className="text-center text-xs text-zinc-400">
-        演示账号:demo@fitplate.app · 密码 fitplate123
-      </p>
     </form>
   );
 }

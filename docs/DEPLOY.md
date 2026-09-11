@@ -12,8 +12,8 @@
 
    ```bash
    DATABASE_URL="<生产库连接串>" npx prisma db push
-   # 可选:写入演示数据(或到线上自行注册账号)
-   # DATABASE_URL="<生产库>" npm run db:seed
+   # 生产环境不要执行 db:seed(会创建公开密码的演示账号);直接到线上用邀请码注册
+   # 实在需要演示数据(明确知道风险)时:DATABASE_URL="<生产库>" SEED_DEMO=1 npm run db:seed
    ```
 
 3. 代码推到 GitHub,在 Vercel 导入仓库,配置环境变量:
@@ -24,6 +24,7 @@
    | `NEXTAUTH_URL` | `https://你的域名`(或 Vercel 预览域) |
    | `NEXTAUTH_SECRET` | `openssl rand -base64 32` 生成 |
    | `TZ` | `Asia/Shanghai` |
+   | `INVITE_CODE` | **强烈建议设置**:注册邀请码,开启「仅受邀请用户可注册」;不设置则任何人可注册 |
    | `AI_API_KEY` / `PEXELS_API_KEY` / `TAVILY_API_KEY` | 可选增强,不配则降级 |
 
 4. 部署完成。Vercel 自带 HTTPS 与 CDN;应用是标准 Next.js App Router,无需额外配置。
@@ -87,7 +88,7 @@ cat backup.sql | docker exec -i fitplate-db psql -U fitplate -d fitplate        
 cd /opt/fitplate
 npm ci
 npm run build          # 1G 小内存机器易 OOM,见下方“小内存构建”
-npm run setup          # prisma db push + seed(生产可跳过 seed)
+npm run setup          # prisma db push + seed(seed 默认跳过演示数据,见 SEED_DEMO)
 
 sudo tee /etc/systemd/system/fitplate.service >/dev/null <<'UNIT'
 [Unit]
