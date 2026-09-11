@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Badge, Card, Disclaimer, SectionTitle, Spinner, Toast } from "@/components/ui";
+import { ExerciseDemoModal } from "@/components/exercise-demo";
 import { WeekBars } from "@/components/charts";
 import { MEAL_SLOT_LABEL } from "@/lib/utils";
 import { cn, addDays, parseDateKey, shortDate, weekdayLabel } from "@/lib/utils";
@@ -51,6 +52,7 @@ export function PlanClient(props: PlanClientProps) {
   const [view, setView] = useState<"week" | "month">("week");
   const [weekStart, setWeekStart] = useState(props.from);
   const [toast, setToast] = useState<string | null>(null);
+  const [demoId, setDemoId] = useState<string | null>(null);
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(parseDateKey(weekStart), i).toISOString().slice(0, 10)), [weekStart]);
   const weekDays = props.days.filter((d) => weekDates.includes(d.date));
@@ -143,7 +145,7 @@ export function PlanClient(props: PlanClientProps) {
                   {weekDays.map((d) => {
                     const s = summarizeDay(d.blocks);
                     return (
-                      <tr key={d.date} className={cn("border-b border-zinc-100 dark:border-zinc-800/60", d.date === new Date().toISOString().slice(0, 10) && "bg-brand-50/50 dark:bg-brand-900/10")}>
+                      <tr key={d.date} className={cn("border-b border-zinc-100 transition hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40", d.date === new Date().toISOString().slice(0, 10) && "bg-brand-50/50 dark:bg-brand-900/10")}>
                         <td className="whitespace-nowrap px-2 py-2.5">
                           <div className="font-medium">{shortDate(d.date)}</div>
                           <div className="text-xs text-zinc-400">{weekdayLabel(d.date)}</div>
@@ -151,9 +153,26 @@ export function PlanClient(props: PlanClientProps) {
                         <td className="px-2 py-2.5">
                           <Badge tone={d.isTraining ? "emerald" : "zinc"}>{d.focus}</Badge>
                         </td>
-                        <td className="px-2 py-2.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{s.strength || "—"}</td>
+                        <td className="px-2 py-2.5">
+                          {d.blocks.strength.length > 0 ? (
+                            <div className="flex max-w-md flex-wrap gap-x-2.5 gap-y-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+                              {d.blocks.strength.map((s2, i) => (
+                                <button
+                                  key={i}
+                                  className="underline-offset-2 transition hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+                                  onClick={() => setDemoId(s2.exerciseId)}
+                                  title="查看动作示范"
+                                >
+                                  {s2.name} {s2.sets}×{s2.unit === "reps" ? `${s2.repsOrDuration}次` : s2.unit === "seconds" ? `${s2.repsOrDuration}s` : `${s2.repsOrDuration}分`}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-zinc-400">—</span>
+                          )}
+                        </td>
                         <td className="px-2 py-2.5 text-xs text-zinc-600 dark:text-zinc-300">{s.cardio || "—"}</td>
-                        <td className="px-2 py-2.5">{d.completed ? <span className="text-brand-600">✓ 已完成</span> : <span className="text-zinc-300">○</span>}</td>
+                        <td className="px-2 py-2.5">{d.completed ? <span className="font-medium text-brand-600">✓ 已完成</span> : <span className="text-zinc-300">○</span>}</td>
                       </tr>
                     );
                   })}
@@ -248,24 +267,33 @@ export function PlanClient(props: PlanClientProps) {
               const p = props.days.find((x) => x.date === d);
               const m = props.meals.find((x) => x.date === d);
               const mealDone = m ? (["breakfast", "lunch", "dinner", "snack"] as MealSlotType[]).filter((s) => m.completedSlots.includes(s)).length : 0;
+              const totalItems = (p ? 1 : 0) + (m ? 4 : 0);
+              const doneItems = (p?.completed ? 1 : 0) + mealDone;
+              const score = totalItems > 0 ? doneItems / totalItems : -1;
               return (
                 <div
                   key={d}
                   className={cn(
                     "rounded-xl border p-1.5 text-left text-xs transition",
                     d === new Date().toISOString().slice(0, 10) ? "border-brand-500 ring-1 ring-brand-500/40" : "border-zinc-200 dark:border-zinc-800",
-                    p && !p.isTraining && "bg-zinc-50 dark:bg-zinc-900"
+                    score === 1
+                      ? "bg-brand-50 dark:bg-brand-900/30"
+                      : score > 0
+                        ? "bg-brand-50/50 dark:bg-brand-900/10"
+                        : p && !p.isTraining
+                          ? "bg-zinc-50 dark:bg-zinc-900"
+                          : ""
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{parseDateKey(d).getUTCDate()}</span>
+                    <span className="tnum font-medium">{parseDateKey(d).getUTCDate()}</span>
                     {p?.completed && <span className="text-brand-600">✓</span>}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1">
                     {p?.isTraining && <span title="训练日">💪</span>}
                     {p && !p.isTraining && <span title="恢复日">🧘</span>}
                     {m && (
-                      <span className="text-[10px] text-zinc-400" title={`饮食 ${mealDone}/4`}>
+                      <span className="tnum text-[10px] text-zinc-400" title={`饮食 ${mealDone}/4`}>
                         🍽{mealDone}/4
                       </span>
                     )}
@@ -281,6 +309,7 @@ export function PlanClient(props: PlanClientProps) {
       <Disclaimer />
       <p className="print-footer">FitPlate · 热量与运动建议仅供参考,不构成医疗或营养治疗建议。周期:{props.from} 至 {props.to}。</p>
       <Toast message={toast} />
+      <ExerciseDemoModal exerciseId={demoId} onClose={() => setDemoId(null)} />
     </div>
   );
 }

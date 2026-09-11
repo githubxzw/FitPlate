@@ -15,12 +15,15 @@ FitPlate
 │   └── /api/*            REST API(见 §3)
 └── 需登录(中间件保护)
     ├── /onboarding       用户档案问卷:3 步(目标与基本信息 → 训练安排 → 饮食偏好),带实时代谢预估;可随时回来编辑
-    ├── /today            ★ 首页「今日计划」:训练卡(四区块+要点+打卡+强度档+自由编辑:添加/删除/排序/替换动作)、
-    │                     四餐卡(图片/热量/打卡/换一道/调份量)、完成度进度环、营养素对比图、
-    │                     教练提示(AI/规则)、参考来源
-    ├── /plan             周视图(健身计划表 + 饮食规划表 + 周完成度图)/ 月历视图;
+    ├── /today            ★ 首页「今日计划」:Hero 渐变概览卡(完成度环 + 连续打卡火焰 + 体重进程 + 快捷记录体重)、
+    │                     训练卡(四区块+要点+打卡+强度档+自由编辑:添加/删除/排序/替换动作 + 组间休息计时器 + ▶动作示范动图)、
+    │                     四餐卡(图片/热量/打卡/换一道/调份量)、饮水记录(按体重估算目标)、
+    │                     营养素对比图、成就解锁庆祝、教练提示(AI/规则)、参考来源
+    ├── /plan             周视图(健身计划表 + 饮食规划表 + 周完成度图)/ 月历视图(完成度着色);
     │                     打印样式、导出 PDF(打印对话框)、CSV 导出(训练/饮食/购物)
     │   └── /plan/customize  我的周模板:逐天选「休息 / 内置模板 / 自定义动作清单」,启用后每天生成都按它执行
+    ├── /stats            ★ 数据中心:核心统计卡、体重趋势图(7 日 EMA 趋势线,参考 MacroFactor)、
+    │                     近 30 天完成度热力图、近 8 周达标率、成就墙(10 枚徽章)
     ├── /meal/[date]/[slot]  食谱详情:成品图、营养、食材克数、步骤、烹饪时长、替代食材、换一道/调份量
     ├── /shopping         购物清单:按食材自动合并克数、分组、勾选、范围切换、打印/CSV
     └── /sources          可信来源库 + 联网检索(白名单域名),展示标题/链接/访问日期
@@ -33,8 +36,9 @@ User 1 ─── 1 Profile          档案:目标类型(cut减脂/bulk增肌/mai
       │                        饮食偏好/过敏/忌口、预算、烹饪时长、特殊状况、自定义周模板(customWeek)
      ├── * PlanDay            每日训练:date、focus、isTraining、intensity(light/standard/plus)、
      │                        blocks(JSON: warmup/strength/cardio/stretch)、aiTips、sources、completed
-     └── * MealDay            每日饮食:date、targetKcal/P/C/F、slots(JSON: 四餐完整内容)、
-                              completedSlots、seed、sources
+     ├── * MealDay            每日饮食:date、targetKcal/P/C/F、slots(JSON: 四餐完整内容)、
+     │                        completedSlots、seed、sources
+     └── * DailyLog           每日生活记录:date、weightKg(可选,记录后同步档案当前体重)、waterMl(饮水累计)
 
 唯一约束:(userId, date) 各一份;所有 JSON 写入前经 zod 校验。
 ```
@@ -56,6 +60,7 @@ User 1 ─── 1 Profile          档案:目标类型(cut减脂/bulk增肌/mai
 | PATCH | `/api/meals/day` | 单餐 `{date, slot, action:"swap"}` 或 `{date, slot, action:"scale", scale}` |
 | POST | `/api/checkin` | 打卡 `{date, kind:"workout"\|"breakfast"\|"lunch"\|"dinner"\|"snack", value}` |
 | GET | `/api/shopping-list?from&to` | 购物清单(同名食材合并) |
+| GET/POST | `/api/daily-log` | 体重/饮水日志:GET 返回区间记录;POST `{date, weightKg? \| waterDeltaMl?}` upsert(记录体重会同步档案并联动热量目标) |
 | GET | `/api/export/csv?type=workouts\|meals\|shopping&from&to` | CSV 附件(带 BOM,Excel 友好) |
 | GET | `/api/img?seed&emoji&label&q` | 图片服务:配置 PEXELS_API_KEY 时 302 真实照片,否则本地 SVG 占位图 |
 | GET | `/api/search?q=` | 可信来源检索(白名单+去重+缓存),结果含访问日期 |
@@ -81,23 +86,41 @@ curl -X POST localhost:3000/api/checkin -H 'Content-Type: application/json' \
 
 ## 4. UI 设计与组件结构
 
-- **风格**:简洁、积极、专业。品牌绿(emerald)+ 琥珀点缀;卡片圆角 16px、浅投影;emoji + 渐变占位图保证可读性与版权安全;深色模式(class 策略,本地持久化);桌面/移动自适应(移动端底部标签栏)。
+- **风格**:简洁、积极、专业。品牌绿(emerald)+ 琥珀点缀;卡片圆角 16px、浅投影;品牌渐变(Hero 卡/主按钮/Logo)、顶部光晕背景;数字统一 tabular-nums;深色模式(class 策略,本地持久化);桌面/移动自适应(移动端固定底部 Tab 栏,带 iOS 安全区适配)。
+- **微交互**:页面卡片 fade-up 入场、打卡 ✓ 弹跳、按钮按压缩放、卡片悬停上浮、食谱图悬停放大、Toast/弹窗动效;尊重 `prefers-reduced-motion`。
+- **激励体系**(借鉴 Keep/Duolingo):连续达标火焰(streak)、10 枚成就徽章与解锁庆祝、30 天完成度热力图;达标定义 = 完成训练 或 四餐完成 ≥3。
+- **动作示范**:每个动作旁「▶ 示范」打开弹窗,内置 40 个动作的演示动图 + 中文分步说明(自托管于 `public/exercise-gifs/`,无外网依赖);数据集未覆盖的动作提供 B 站示范视频搜索入口。计划表中的动作名同样可点击查看。
+- **数据洞察**(借鉴 MacroFactor):体重记录自动计算 7 日 EMA 趋势线过滤单日噪声;记录体重同步档案,热量目标随之动态更新。
 - **组件**:
   - `components/ui.tsx` — Card / Badge / CheckButton / Progress / Stat / Skeleton / EmptyState / Modal / Toast / Disclaimer
-  - `components/charts.tsx` — Recharts:ProgressRing(完成度)、WeekBars(周完成度)、MacroBars(营养素对比)
-  - `components/nav.tsx` — 顶部导航 + 主题切换 + 退出
+  - `components/charts.tsx` — Recharts:ProgressRing(完成度)、WeekBars(周完成度)、MacroBars(营养素对比)、WeightLine(体重趋势)
+  - `components/nav.tsx` — 毛玻璃顶部导航 + 移动端固定底部 Tab 栏 + 主题切换 + 退出
   - `components/smart-image.tsx` — 图片加载失败自动降级占位图
-  - 功能组件:onboarding-form / today-client / plan-client / recipe-actions / shopping-client / source-search
+  - 功能组件:onboarding-form / today-client / plan-client / stats-client / recipe-actions / shopping-client / source-search
 - **状态体验**:各页 loading.tsx 骨架屏、全局 error.tsx 重试、空状态引导生成、失败 Toast + 重新生成。
+
+### 设计参考来源
+
+- [MacroFactor — 体重趋势与动态算法](https://macrofactor.com/macrofactors-algorithms-and-core-philosophy/)(EMA 趋势体重、目标动态调整)
+- [Keep — 数据中心与成就体系](https://apps.apple.com/cn/app/keep-ai-%E8%BF%90%E5%8A%A8%E6%95%99%E7%BB%83/id952694580)、[Keep 产品分析](https://www.woshipm.com/evaluating/879036.html)(数据统计可视化、勋章激励)
+- [Strong — Workout Tracker](https://www.strong.app/)(组间休息计时器、极简记录)
+- [Nike Training Club](https://www.nike.com/ntc-app)(目标设定、习惯养成)
+- 喝水提醒类应用(WaterMinder 等):按体重估算饮水目标(~35ml/kg)+ 可视化水位
+- [健身 App 游戏化研究](https://pmc.ncbi.nlm.nih.gov/articles/PMC6348030/)(streak 与徽章的行为设计依据)
+
+### 动作演示动图版权
+
+- 动图来自开源数据集 [hasaneyldrm/exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset)(40 个动作,自托管于 `public/exercise-gifs/`),原始媒体版权归 **© Gym visual(gymvisual.com)** 所有,由该数据集经授权再分发;应用内弹窗已署名,详见 [`public/exercise-gifs/NOTICE.md`](public/exercise-gifs/NOTICE.md)。
+- 数据集中的中文分步说明(MIT)已在「动作示范」弹窗中展示。
 
 ## 5. 分阶段开发计划
 
 | 阶段 | 范围 | 状态 |
 |---|---|---|
-| **MVP(当前)** | 问卷、热量/宏量目标推导、7/14/30 天训练日历、三餐+加餐食谱、打卡、周计划表、食谱详情、购物清单、CSV/打印导出、NextAuth 登录、可信来源检索、占位图降级 | ✅ 已完成 |
-| v1.1 | AI 全量生成(结构化 JSON 出计划/食谱,当前为可选「教练提示」增强)、图片搜索接入默认图、体重记录曲线、PWA | 🚧 |
-| v1.2 | 多人/家庭计划、训练视频演示、语音打卡、微信/邮箱登录、部署一键化 | 📋 |
-| v2.0 | 可穿戴设备同步(心率/步数)、智能周回顾与自适应计划、社交挑战 | 📋 |
+| **MVP** | 问卷、热量/宏量目标推导、7/14/30 天训练日历、三餐+加餐食谱、打卡、周计划表、食谱详情、购物清单、CSV/打印导出、NextAuth 登录、可信来源检索、占位图降级 | ✅ 已完成 |
+| **v1.1(当前)** | 数据中心(/stats:体重趋势 EMA/热力图/周达标率/成就墙)、体重与饮水记录(DailyLog)、连续打卡与成就徽章、组间休息计时器、Hero 概览卡与全面视觉升级、移动端底部 Tab 栏 | ✅ 已完成 |
+| v1.2 | AI 全量生成(结构化 JSON 出计划/食谱)、图片搜索接入默认图、PWA | 📋 |
+| v2.0 | 多人/家庭计划、训练视频演示、语音打卡、微信/邮箱登录、可穿戴设备同步、智能周回顾与自适应计划 | 📋 |
 
 ## 6. 快速开始
 
@@ -135,8 +158,8 @@ npm run dev                 # http://localhost:3000
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (页面) login/ onboarding/ today/ plan/ meal/[date]/[slot]/ shopping/ sources/
-│   └── api/                # register/ profile/ plan/ meals/ checkin/ shopping-list/
+│   ├── (页面) login/ onboarding/ today/ plan/ stats/ meal/[date]/[slot]/ shopping/ sources/
+│   └── api/                # register/ profile/ plan/ meals/ checkin/ daily-log/ shopping-list/
 │                           # export/csv/ img/ search/ ai/tip/ auth/[...nextauth]
 ├── components/             # UI 基础组件 + 功能组件(见 §4)
 ├── lib/
@@ -145,6 +168,8 @@ src/
 │   ├── meal-engine.ts      # 食谱引擎(过敏/忌口/预算/时长过滤 + 份量缩放 + 购物清单)
 │   ├── exercises.ts        # 45+ 动作库(器械/等级/组次/要点)
 │   ├── recipes.ts          # 29 道食谱(食材克数/营养/步骤/替代食材)
+│   ├── stats.ts            # streak/徽章/7日EMA趋势体重/热力图(纯函数)
+│   ├── stats-service.ts    # 统计聚合服务(打卡+日志 → 摘要)
 │   ├── plan-service.ts     # 生成 ↔ 数据库编排(重生成保留打卡进度)
 │   ├── search.ts           # 可信来源检索:白名单/去重/缓存/降级
 │   ├── ai.ts               # 服务端 AI 调用(zod 校验 JSON,失败回退规则引擎)
@@ -152,17 +177,17 @@ src/
 │   ├── auth.ts / api.ts / validation.ts / csv.ts / db.ts / utils.ts / constants.ts
 └── middleware.ts           # 登录保护
 prisma/ schema.prisma · seed.ts
-tests/                      # vitest:calc / workout-engine / meal-engine / search / csv-utils
+tests/                      # vitest:calc / workout-engine / meal-engine / stats / search / csv-utils / rate-limit
 ```
 
 ## 8. 测试
 
 ```bash
-npm test        # vitest run,45 个用例
+npm test        # vitest run,72 个用例
 npm run test:watch
 ```
 
-覆盖:BMR/Katch-McArdle、缺口钳制与安全下限、孕期/未成年/BMI 偏低等安全分支、宏量营养素能量一致性;训练日历的周期长度/训练天数/器械过滤/强度缩放/确定性;食谱的过敏原/忌口/素食/预算/时长过滤与热量对齐、份量缩放、购物清单合并;来源白名单(相似域名攻击)/去重/缓存/可注入 fetcher;CSV 转义与 BOM。
+覆盖:BMR/Katch-McArdle、缺口钳制与安全下限、孕期/未成年/BMI 偏低等安全分支、宏量营养素能量一致性;训练日历的周期长度/训练天数/器械过滤/强度缩放/确定性;食谱的过敏原/忌口/素食/预算/时长过滤与热量对齐、份量缩放、购物清单合并;连续达标 streak(今天未达标不断签)/最佳连胜/热力图/周达标率/7 日 EMA 趋势体重/饮水目标/成就徽章解锁与进度;来源白名单(相似域名攻击)/去重/缓存/可注入 fetcher;CSV 转义与 BOM。
 
 ## 9. 联网资料与版权
 

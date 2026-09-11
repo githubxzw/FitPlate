@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { Nav } from "@/components/nav";
 import { TodayClient } from "@/components/today-client";
 import { targetsFor, profileToInput } from "@/lib/plan-service";
+import { getStatsSummary } from "@/lib/stats-service";
 import { aiEnabled } from "@/lib/ai";
 import { dateKey, greeting, parseDateKey, todayKey, weekdayLabel, fromJson } from "@/lib/utils";
 import type { MealDayData, PlanBlocks, SourceRef } from "@/types";
@@ -19,25 +20,26 @@ export default async function TodayPage() {
   const user = await db.user.findUnique({ where: { id: userId } });
 
   const today = todayKey();
-  const [planDay, mealDay] = await Promise.all([
+  const [planDay, mealDay, stats] = await Promise.all([
     db.planDay.findUnique({ where: { userId_date: { userId, date: parseDateKey(today) } } }),
     db.mealDay.findUnique({ where: { userId_date: { userId, date: parseDateKey(today) } } }),
+    getStatsSummary(userId, { weightKg: profile.weightKg, goalWeightKg: profile.goalWeightKg }),
   ]);
 
   const targets = targetsFor(profile);
+  const planDayNumber = Math.floor((parseDateKey(today).getTime() - parseDateKey(dateKey(profile.startDate)).getTime()) / 86400000) + 1;
 
   return (
     <div className="min-h-dvh">
       <Nav userName={user?.name} userEmail={user?.email} />
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
-          <div>
+          <div className="animate-fade-up">
             <h1 className="text-2xl font-bold">
               {greeting()},{user?.name ?? "朋友"} 👋
             </h1>
             <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
               今天是 {today} {weekdayLabel(today)}
-              {planDay ? ` · 计划第 ${Math.floor((parseDateKey(today).getTime() - parseDateKey(dateKey(profile.startDate)).getTime()) / 86400000) + 1} 天` : ""}
             </p>
           </div>
           <a href="/onboarding" className="btn-ghost text-xs">
@@ -51,6 +53,7 @@ export default async function TodayPage() {
           greeting={greeting()}
           userName={user?.name}
           goal={(profile.goal as "cut" | "bulk" | "maintain") ?? "cut"}
+          planDayNumber={planDayNumber}
           targets={{
             targetKcal: targets.targetKcal,
             protein: targets.protein,
@@ -61,6 +64,16 @@ export default async function TodayPage() {
           weightKg={profile.weightKg}
           goalWeightKg={profile.goalWeightKg}
           profileInput={profileToInput(profile)}
+          stats={{
+            streak: stats.streak,
+            best: stats.best,
+            waterMl: stats.todayWaterMl,
+            waterGoalMl: stats.waterGoalMl,
+            todayWeightKg: stats.todayWeightKg,
+            latestWeightKg: stats.latestWeightKg,
+            firstWeightKg: stats.firstWeightKg,
+            badges: stats.badges,
+          }}
           plan={
             planDay
               ? {

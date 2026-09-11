@@ -10,25 +10,45 @@ html.dark {
   color-scheme: dark;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* 顶部品牌色光晕,让页面不是纯白/纯黑 */
+  background-image: radial-gradient(1100px 380px at 50% -160px, rgba(16, 185, 129, 0.09), transparent 70%);
+  background-repeat: no-repeat;
+}
+
+html.dark body {
+  background-image: radial-gradient(1100px 380px at 50% -160px, rgba(16, 185, 129, 0.07), transparent 70%);
+}
+
+/* 数字统计用等宽数字,跳动时不移位 */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 @layer components {
   .card {
     @apply rounded-2xl border border-zinc-200 bg-white shadow-card dark:border-zinc-800 dark:bg-zinc-900;
   }
+  /* 可交互卡片:悬停轻微上浮 */
+  .card-hover {
+    @apply transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lift;
+  }
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition
+    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition duration-150 ease-out
       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500
-      disabled:cursor-not-allowed disabled:opacity-50;
+      active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+    @apply btn bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-brand hover:from-brand-500 hover:to-brand-700 active:from-brand-600 active:to-brand-800;
   }
   .btn-ghost {
-    @apply btn border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+    @apply btn border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
   }
   .btn-soft {
     @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-900/40 dark:text-brand-300 dark:hover:bg-brand-900/70;
@@ -44,6 +64,49 @@ body {
   .label {
     @apply mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300;
   }
+  /* 品牌渐变文字 */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-500 via-emerald-500 to-teal-500 bg-clip-text text-transparent;
+  }
+  /* 毛玻璃面板 */
+  .glass {
+    @apply border border-white/40 bg-white/70 backdrop-blur-xl dark:border-zinc-800/60 dark:bg-zinc-900/70;
+  }
+}
+
+/* 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 120, 0.35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.35);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 尊重减弱动态偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 移动端底部 Tab 栏为固定定位,给主内容留出空间(含 iOS 安全区) */
+@media (max-width: 639px) {
+  main {
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom)) !important;
+  }
 }
 
 /* 打印 / 导出 PDF 样式 */
@@ -54,6 +117,7 @@ body {
   body {
     background: #fff !important;
     color: #000 !important;
+    background-image: none !important;
   }
   .card {
     border-color: #ddd !important;

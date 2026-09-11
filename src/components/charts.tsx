@@ -5,7 +5,10 @@
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   PolarAngleAxis,
   RadialBar,
   RadialBarChart,
@@ -14,13 +17,30 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { cn } from "@/lib/utils";
 
 /** 今日完成度进度环 */
-export function ProgressRing({ value, label, sub }: { value: number; label: string; sub?: string }) {
+export function ProgressRing({
+  value,
+  label,
+  sub,
+  color,
+  trackColor,
+  size = 160,
+  labelClass,
+}: {
+  value: number;
+  label: string;
+  sub?: string;
+  color?: string;
+  trackColor?: string;
+  size?: number;
+  labelClass?: string;
+}) {
   const v = Math.min(100, Math.max(0, value));
-  const color = v >= 100 ? "#059669" : v >= 50 ? "#10b981" : "#f59e0b";
+  const fill = color ?? (v >= 100 ? "#059669" : v >= 50 ? "#10b981" : "#f59e0b");
   return (
-    <div className="relative h-40 w-40">
+    <div className="relative" style={{ width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
         <RadialBarChart
           data={[{ name: "done", value: v }]}
@@ -30,12 +50,12 @@ export function ProgressRing({ value, label, sub }: { value: number; label: stri
           endAngle={-270}
         >
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar dataKey="value" cornerRadius={999} fill={color} background={{ fill: "rgba(120,120,120,0.15)" }} />
+          <RadialBar dataKey="value" cornerRadius={999} fill={fill} background={{ fill: trackColor ?? "rgba(120,120,120,0.15)" }} />
         </RadialBarChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold">{label}</span>
-        {sub && <span className="text-xs text-zinc-500 dark:text-zinc-400">{sub}</span>}
+        <span className={cn("tnum text-2xl font-bold", labelClass)}>{label}</span>
+        {sub && <span className={cn("text-xs", labelClass ?? "text-zinc-500 dark:text-zinc-400")}>{sub}</span>}
       </div>
     </div>
   );
@@ -91,6 +111,27 @@ export function MacroBars({
             ))}
           </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** 体重趋势:实际体重(细) + 7 日 EMA 趋势线(粗,MacroFactor 式) */
+export function WeightLine({ data }: { data: { date: string; weight: number; trend: number }[] }) {
+  return (
+    <div className="h-64 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,.15)" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5).replace("-", "/")} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+          <YAxis domain={["auto", "auto"]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickFormatter={(v: number) => v.toFixed(0)} />
+          <Tooltip
+            formatter={(v, name) => [`${v} kg`, name === "trend" ? "趋势体重" : "当日体重"]}
+            contentStyle={{ borderRadius: 12, fontSize: 12, border: "1px solid rgba(120,120,120,.2)" }}
+          />
+          <Line type="monotone" dataKey="weight" name="weight" stroke="#94a3b8" strokeWidth={1.5} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+          <Line type="monotone" dataKey="trend" name="trend" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );

@@ -24,6 +24,7 @@ model User {
   profile      Profile?
   planDays     PlanDay[]
   mealDays     MealDay[]
+  dailyLogs    DailyLog[]
 
   @@map("users")
 }
@@ -98,4 +99,19 @@ model MealDay {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("meal_days")
+}
+
+// 每日生活记录:体重(可选)与饮水累计;一天一条,支持部分更新
+model DailyLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  weightKg  Float? // 当日晨重(可选)
+  waterMl   Int      @default(0) // 当日累计饮水(ml)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_logs")
 }

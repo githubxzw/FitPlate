@@ -62,6 +62,16 @@ export const checkinSchema = z.object({
   value: z.boolean(),
 });
 
+export const dailyLogSchema = z
+  .object({
+    date: dateKeySchema,
+    weightKg: z.coerce.number().min(25).max(300).optional(),
+    waterDeltaMl: z.coerce.number().int().min(-2000).max(2000).optional(),
+  })
+  .refine((v) => v.weightKg !== undefined || v.waterDeltaMl !== undefined, {
+    message: "至少提供体重或饮水增量",
+  });
+
 export const planPatchSchema = z
   .object({
     date: dateKeySchema,
